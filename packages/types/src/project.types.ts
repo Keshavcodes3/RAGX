@@ -4,7 +4,6 @@ export interface CreateProjectInput {
   userId: string;
   name: string;
   description?: string;
-  apiKey:string
 }
 
 
@@ -22,3 +21,7 @@ export interface CreateApiKeyResponse {
 }
 
 
+export interface UpdateProjectInput {
+  name?: string;
+  description?: string;
+}
