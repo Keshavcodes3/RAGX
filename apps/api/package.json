@@ -29,7 +29,9 @@
     "@langchain/core": "^1.2.12",
     "@langchain/textsplitters": "^1.0.1",
     "@repo/types": "*",
+    "add": "^2.0.9",
     "argon2": "^0.45.1",
+    "bun": "^1.4.2",
     "cheerio": "^1.2.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
@@ -43,7 +45,9 @@
     "mammoth": "^1.12.3",
     "pdf-parse": "^2.4.5",
     "pg": "^8.23.0",
+    "sharp": "^0.35.4",
     "tiktoken": "^1.0.22",
+    "unpdf": "^1.8.1",
     "zod": "^4.6.5"
   }
 }
