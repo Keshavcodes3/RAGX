@@ -4,7 +4,6 @@ export interface CreateProjectInput {
   userId: string;
   name: string;
   description?: string;
-  apiKey:string
 }
 
 

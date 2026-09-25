@@ -1,7 +1,13 @@
+import {
+  BadRequestError,
+  ForbiddenError,
+  NotFoundError,
+  UnauthorizedError,
+} from "@/Utils/httpError";
+
 import { ProjectRepository } from "../Repository/project.repo";
 
 import type {
-  CreateApiKeyInput,
   CreateProjectInput,
   UpdateProjectInput,
 } from "@repo/types";
@@ -11,6 +17,19 @@ export class ProjectService {
     private readonly projectRepository = new ProjectRepository(),
   ) {}
 
+  private async requireOwnedProject(projectId: string, userId: string) {
+    const project = await this.projectRepository.findById(projectId);
+
+    if (!project) {
+      throw new NotFoundError("Project not found");
+    }
+
+    if (project.userId !== userId) {
+      throw new ForbiddenError("Access denied");
+    }
+
+    return project;
+  }
 
   async createProject(data: CreateProjectInput) {
     const project = await this.projectRepository.create(data);
@@ -30,15 +49,8 @@ export class ProjectService {
     };
   }
 
-  async getProject(projectId: string) {
-    const project =
-      await this.projectRepository.findById(projectId);
-
-    if (!project) {
-      throw new Error("Project not found");
-    }
-
-    return project;
+  async getProject(projectId: string, userId: string) {
+    return this.requireOwnedProject(projectId, userId);
   }
 
   async getUserProjects(userId: string) {
@@ -47,82 +59,69 @@ export class ProjectService {
 
   async updateProject(
     projectId: string,
+    userId: string,
     data: UpdateProjectInput,
   ) {
-    const project =
-      await this.projectRepository.findById(projectId);
+    await this.requireOwnedProject(projectId, userId);
 
-    if (!project) {
-      throw new Error("Project not found");
-    }
-
-    const updatedProject =
-      await this.projectRepository.update(projectId, data);
+    const updatedProject = await this.projectRepository.update(
+      projectId,
+      userId,
+      data,
+    );
 
     if (!updatedProject) {
-      throw new Error("Failed to update project");
+      throw new NotFoundError("Project not found");
     }
 
     return updatedProject;
   }
 
-  async deleteProject(projectId: string) {
-    const project =
-      await this.projectRepository.findById(projectId);
+  async deleteProject(projectId: string, userId: string) {
+    await this.requireOwnedProject(projectId, userId);
 
-    if (!project) {
-      throw new Error("Project not found");
-    }
-
-    const deletedProject =
-      await this.projectRepository.delete(projectId);
+    const deletedProject = await this.projectRepository.delete(
+      projectId,
+      userId,
+    );
 
     if (!deletedProject) {
-      throw new Error("Failed to delete project");
+      throw new NotFoundError("Project not found");
     }
 
     return deletedProject;
   }
 
   async createApiKey(
-    data: CreateApiKeyInput,
+    projectId: string,
+    userId: string,
+    name: string,
   ) {
-    const project =
-      await this.projectRepository.findById(data.projectId);
+    await this.requireOwnedProject(projectId, userId);
 
-    if (!project) {
-      throw new Error("Project not found");
-    }
-
-    return this.projectRepository.createApiKey(
-      data.projectId,
-      data.name,
-    );
+    return this.projectRepository.createApiKey(projectId, name);
   }
 
-  async getApiKeys(projectId: string) {
-    const project =
-      await this.projectRepository.findById(projectId);
-
-    if (!project) {
-      throw new Error("Project not found");
-    }
+  async getApiKeys(projectId: string, userId: string) {
+    await this.requireOwnedProject(projectId, userId);
 
     return this.projectRepository.getApiKeys(projectId);
   }
 
   async getApiKey(
     projectId: string,
+    userId: string,
     apiKeyId: string,
   ) {
-    const apiKey =
-      await this.projectRepository.getApiKey(
-        projectId,
-        apiKeyId,
-      );
+    await this.requireOwnedProject(projectId, userId);
+
+    const apiKey = await this.projectRepository.getApiKey(
+      projectId,
+      apiKeyId,
+    );
 
     if (!apiKey) {
-      throw new Error("API key not found");
+      throw new NotFoundError("API key not found");
     }
 
     return apiKey;
@@ -130,30 +129,31 @@ export class ProjectService {
 
   async revokeApiKey(
     projectId: string,
+    userId: string,
     apiKeyId: string,
   ) {
-    const apiKey =
-      await this.projectRepository.getApiKey(
-        projectId,
-        apiKeyId,
-      );
+    await this.requireOwnedProject(projectId, userId);
+
+    const apiKey = await this.projectRepository.getApiKey(
+      projectId,
+      apiKeyId,
+    );
 
     if (!apiKey) {
-      throw new Error("API key not found");
+      throw new NotFoundError("API key not found");
     }
 
     if (apiKey.revokedAt) {
-      throw new Error("API key is already revoked");
+      throw new BadRequestError("API key is already revoked");
     }
 
-    const revokedKey =
-      await this.projectRepository.revokeApiKey(
-        projectId,
-        apiKeyId,
-      );
+    const revokedKey = await this.projectRepository.revokeApiKey(
+      projectId,
+      apiKeyId,
+    );
 
     if (!revokedKey) {
-      throw new Error("Failed to revoke API key");
+      throw new NotFoundError("API key not found");
     }
 
     return revokedKey;
@@ -161,21 +161,18 @@ export class ProjectService {
 
   async authenticateApiKey(keyHash: string) {
     const apiKey =
-      await this.projectRepository.findApiKeyByHash(
-        keyHash,
-      );
+      await this.projectRepository.findApiKeyByHash(keyHash);
 
     if (!apiKey) {
-      throw new Error("Invalid or revoked API key");
+      throw new UnauthorizedError("Invalid or revoked API key");
     }
 
-    const project =
-      await this.projectRepository.findById(
-        apiKey.projectId,
-      );
+    const project = await this.projectRepository.findById(
+      apiKey.projectId,
+    );
 
     if (!project) {
-      throw new Error("Project not found");
+      throw new NotFoundError("Project not found");
     }
 
     return {

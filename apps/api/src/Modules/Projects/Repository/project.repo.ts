@@ -9,7 +9,6 @@ import {
 } from "@utils/generateApiKey";
 
 import type {
-  CreateApiKeyInput,
   CreateApiKeyResponse,
   CreateProjectInput,
 } from "@repo/types";
@@ -41,6 +40,20 @@ export class ProjectRepository {
     return project;
   }
 
+  async findByIdAndUserId(projectId: string, userId: string) {
+    const [project] = await this.DB
+      .select()
+      .from(projectTable)
+      .where(
+        and(
+          eq(projectTable.id, projectId),
+          eq(projectTable.userId, userId),
+        ),
+      );
+
+    return project;
+  }
+
   async findByUserId(userId: string) {
     const projects = await this.DB
       .select()
@@ -52,6 +65,7 @@ export class ProjectRepository {
 
   async update(
     projectId: string,
+    userId: string,
     data: {
       name?: string;
       description?: string;
@@ -63,16 +77,26 @@ export class ProjectRepository {
         ...data,
         updatedAt: new Date(),
       })
-      .where(eq(projectTable.id, projectId))
+      .where(
+        and(
+          eq(projectTable.id, projectId),
+          eq(projectTable.userId, userId),
+        ),
+      )
       .returning();
 
     return updatedProject;
   }
 
-  async delete(projectId: string) {
+  async delete(projectId: string, userId: string) {
     const [deletedProject] = await this.DB
       .delete(projectTable)
-      .where(eq(projectTable.id, projectId))
+      .where(
+        and(
+          eq(projectTable.id, projectId),
+          eq(projectTable.userId, userId),
+        ),
+      )
       .returning();
 
     return deletedProject;
@@ -100,8 +124,15 @@ export class ProjectRepository {
         createdAt: ApiKeys.createdAt,
       });
 
+    if (!createdKey?.id || !createdKey.name || !createdKey.projectId || !createdKey.createdAt) {
+      throw new Error("Failed to create API key");
+    }
+
     return {
-      ...createdKey,
+      id: createdKey.id,
+      name: createdKey.name,
+      projectId: createdKey.projectId,
+      createdAt: createdKey.createdAt,
       key: apiKey,
     };
   }
@@ -140,7 +171,14 @@ export class ProjectRepository {
 
   async getApiKey(projectId: string, apiKeyId: string) {
     const [apiKey] = await this.DB
-      .select()
+      .select({
+        id: ApiKeys.id,
+        projectId: ApiKeys.projectId,
+        name: ApiKeys.name,
+        createdAt: ApiKeys.createdAt,
+        updatedAt: ApiKeys.updatedAt,
+        revokedAt: ApiKeys.revokedAt,
+      })
       .from(ApiKeys)
       .where(
         and(
