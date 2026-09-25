@@ -152,9 +152,6 @@ export class ProjectRepository {
     return apiKey;
   }
 
-  // ----------------------------------------
-  // API KEY AUTHENTICATION
-  // ----------------------------------------
 
   async findApiKeyByHash(keyHash: string) {
     const [apiKey] = await this.DB
