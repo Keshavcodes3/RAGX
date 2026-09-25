@@ -17,17 +17,36 @@ export const userTable=pgTable("user",{
     .notNull(),
 })
 
+export const projectTable = pgTable("project", {
+  id: uuid("id").defaultRandom().primaryKey(),
 
-export const projectTable=pgTable("project",{
-    id: uuid("id").defaultRandom().primaryKey(),
-
-    userId:uuid("user_id").notNull().references(()=>userTable.id,{
-        onDelete:"cascade"
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => userTable.id, {
+      onDelete: "cascade",
     }),
 
+  name: varchar({ length: 50 }).notNull(),
+
+  description: varchar({ length: 200 }),
+
+  createdAt: timestamp("created_at")
+    .defaultNow()
+    .notNull(),
+
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .notNull(),
+});
+
+
+export const ApiKeys=pgTable("api-keys",{
+    id: uuid("id").defaultRandom().primaryKey(),
+    projectId:uuid("project_id").notNull().references(()=>projectTable.id,{
+        onDelete:"cascade"
+    }),
     name:varchar({length:50}).notNull(),
-    description:varchar({length:200}),
-    apiKey:varchar().notNull(),
+    keyHash:varchar({length:64}).notNull().unique(),
     createdAt: timestamp("created_at")
     .defaultNow()
     .notNull(),
@@ -35,6 +54,9 @@ export const projectTable=pgTable("project",{
   updatedAt: timestamp("updated_at")
     .defaultNow()
     .notNull(),
+
+    revokedAt:timestamp("revoked_at"),
+
+
+
 })
-
-

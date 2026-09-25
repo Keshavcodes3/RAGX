@@ -8,11 +8,15 @@
     "jsx": "react-jsx",
     "allowJs": true,
     "types": ["bun"],
-     "paths": {
-      "@/*": ["./src/*","/apps/api/*"],
-      "@modules/*": ["./src/modules/*"],
-      "@config/*":["./src/config/*"],
-      "@auth/*": ["./src/modules/Auth/*"]
+    "paths": {
+      "@/*": ["./src/*"],
+      "@config/*": ["./src/config/*"],
+      "@db/*": ["./src/DB/*"],
+      "@modules/*": ["./src/Modules/*"],
+      "@utils/*": ["./src/Utils/*"],
+      "@middlewares/*": ["./src/Middlewares/*"],
+      "@repo/types": ["../../packages/types/src/index.ts"],
+      "@repo/types/*": ["../../packages/types/src/*"]
     },
     // Bundler mode
     "moduleResolution": "bundler",
@@ -31,5 +35,7 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
-  }
+  },
+  "include": ["index.ts", "src", "drizzle.config.ts"],
+  "exclude": ["node_modules", "drizzle"]
 }
