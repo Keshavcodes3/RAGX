@@ -1,5 +1,5 @@
 {
-  "name": "RAGX",
+  "name": "ragx",
   "private": true,
   "scripts": {
     "build": "turbo run build",
@@ -25,5 +25,23 @@
   "workspaces": [
     "apps/*",
     "packages/*"
-  ]
+  ],
+  "overrides": {
+    "drizzle-orm": "1.0.0-rc.4"
+  },
+  "version": "1.0.0",
+  "description": "RAGX\r The retrieval layer for AI.",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Keshavcodes3/RAGX.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Keshavcodes3/RAGX/issues"
+  },
+  "homepage": "https://github.com/Keshavcodes3/RAGX#readme"
 }
