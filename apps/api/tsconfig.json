@@ -11,9 +11,9 @@
      "paths": {
       "@/*": ["./src/*","/apps/api/*"],
       "@modules/*": ["./src/modules/*"],
+      "@config/*":["./src/config/*"],
       "@auth/*": ["./src/modules/Auth/*"]
     },
-     "include": ["**/*.ts"],
     // Bundler mode
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
