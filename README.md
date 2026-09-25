@@ -1,159 +1,399 @@
-# Turborepo starter
+RAGX
+The retrieval layer for AI.
 
-This Turborepo starter is maintained by the Turborepo core team.
+RAGX is a developer-first retrieval infrastructure platform that turns your documents into searchable, AI-ready context.
 
-## Using this example
-
-Run the following command:
-
-```sh
-npx create-turbo@latest
 ```
 
-## What's inside?
+Upload your documents.
+RAGX handles ingestion, parsing, chunking, embeddings, and vector search.
 
-This Turborepo includes the following packages/apps:
+```
+Your application brings the LLM.
 
-### Apps and Packages
+Why RAGX?
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `@next/eslint-plugin-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+Building RAG from scratch usually means wiring together:
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
+```TS
+Documents
+   ↓
+Parser
+   ↓
+Chunker
+   ↓
+Embedding Model
+   ↓
+Vector Database
+   ↓
+Similarity Search
+   ↓
+Context
+   ↓
+LLM
+```
+RAGX handles everything up to the LLM.
 
-### Utilities
+```TS
+Your Application
+       │
+       ▼
+     RAGX
+       │
+       ├── Ingestion
+       ├── Parsing
+       ├── Chunking
+       ├── Embeddings
+       ├── Vector Storage
+       └── Retrieval
+       │
+       ▼
+Relevant Context
+       │
+       ▼
+Your LLM
 
-This Turborepo has some additional tools already setup for you:
+```
+No vector database setup.
+No ingestion pipeline.
+No chunking implementation.
+No embedding infrastructure.
+Just an API.
 
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
+Quick Start
 
-### Build
+<b>1. Create a RAGX project</b>
 
-To build all apps and packages, run the following command:
+Create a project from the RAGX dashboard and generate an API key.
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo build
+```
+ragx_live_xxxxxxxxxxxxx
 ```
 
-Without global `turbo`, use your package manager:
+Keep your API key secret.
 
-```sh
-cd my-turborepo
-npx turbo build
-bun exec turbo build
-bun exec turbo build
+2. Install the SDK
+
+```
+bun add @ragx/sdk
 ```
 
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+or:
+```
+npm install @ragx/sdk
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo build --filter=docs
 ```
 
-Without global `turbo`:
+3. Initialize RAGX
 
-```sh
-npx turbo build --filter=docs
-bun exec turbo build --filter=docs
-bun exec turbo build --filter=docs
+```
+import RAGX from "@ragx/sdk";
+
+const ragx = new RAGX({
+  apiKey: process.env.RAGX_API_KEY
+});
+
+
+```
+Upload a Document
 ```
 
-### Develop
+const document = await ragx.upload("./docs/postgres.pdf");
 
-To develop all apps and packages, run the following command:
+console.log(document);
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
+```
+RAGX automatically processes the document:
 
-```sh
-cd my-turborepo
-turbo dev
+
+```TS
+PDF
+ ↓
+Text Extraction
+ ↓
+Chunking
+ ↓
+Embeddings
+ ↓
+Vector Storage
+```
+Example response:
 ```
 
-Without global `turbo`, use your package manager:
+{
+  "id": "doc_8f92",
+  "name": "postgres.pdf",
+  "status": "ready",
+  "chunks": 421
+}
 
-```sh
-cd my-turborepo
-npx turbo dev
-bun exec turbo dev
-bun exec turbo dev
+```
+Search Your Knowledge
+
+Once your document is indexed:
+
+```
+const results = await ragx.search(
+  "How does PostgreSQL handle concurrent transactions?"
+);
+
+```
+Example response:
+
+```TS
+{
+  "results": [
+    {
+      "text": "PostgreSQL uses MVCC...",
+      "score": 0.94,
+      "documentId": "doc_8f92",
+      "page": 17
+    },
+    {
+      "text": "Each transaction sees a consistent snapshot...",
+      "score": 0.89,
+      "documentId": "doc_8f92",
+      "page": 18
+    }
+  ]
+}
 ```
 
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+You can pass this context to any LLM you want.
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
+Bring Your Own LLM
 
-```sh
-turbo dev --filter=web
+RAGX does not require you to use a specific LLM provider.
+
+```TS
+
+                    RAGX
+
+              ┌─────────────┐
+              │  Retrieval  │
+              └──────┬──────┘
+                     │
+                     ▼
+              Relevant Context
+                     │
+          ┌──────────┼──────────┐
+          ▼          ▼          ▼
+        OpenAI    Anthropic   Gemini
+
+```
+Example:
 ```
 
-Without global `turbo`:
-
-```sh
-npx turbo dev --filter=web
-bun exec turbo dev --filter=web
-bun exec turbo dev --filter=web
+const results = await ragx.search(
+  "Explain PostgreSQL MVCC"
+);
 ```
 
-### Remote Caching
+// Send results to your preferred LLM.
 
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
+RAGX focuses on retrieval, while you remain in control of generation.
 
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
+Knowledge Bases
 
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo login
+Group documents into isolated knowledge bases.
 ```
 
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo login
-bun exec turbo login
-bun exec turbo login
+const knowledgeBase = await ragx.knowledgeBases.create({
+  name: "PostgreSQL Documentation"
+});
 ```
 
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
+Add documents:
 
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
+```TS
+await ragx.knowledgeBases.addDocument(
+  knowledgeBase.id,
+  document.id
+);
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
+```
+Query the knowledge base:
 
-```sh
-turbo link
+
+```
+const results = await ragx.search(
+  "How does MVCC work?",
+  {
+    knowledgeBase: knowledgeBase.id
+  }
+);
+
+```
+A knowledge base can contain:
+
+```
+PostgreSQL Documentation
+├── postgres.pdf
+├── transactions.md
+├── mvcc.md
+└── indexing.pdf
+```
+RAGX API
+```TS
+
+Documents
+POST   /v1/documents
+GET    /v1/documents
+GET    /v1/documents/:id
+DELETE /v1/documents/:id
+Knowledge Bases
+POST   /v1/knowledge-bases
+GET    /v1/knowledge-bases
+GET    /v1/knowledge-bases/:id
+DELETE /v1/knowledge-bases/:id
+Search
+POST /v1/search
 ```
 
-Without global `turbo`:
+Example:
 
-```sh
-npx turbo link
-bun exec turbo link
-bun exec turbo link
+```
+{
+  "knowledgeBase": "kb_123",
+  "query": "How does MVCC work?",
+  "topK": 5
+}
+
+
 ```
 
-## Useful Links
+Architecture
 
-Learn more about the power of Turborepo:
+  ```
+                         RAGX
 
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
+                         API
+                          │
+             ┌────────────┼────────────┐
+             │            │            │
+             ▼            ▼            ▼
+          Auth        Documents     Search
+             │            │            │
+             │            ▼            │
+             │         Ingestion       │
+             │            │            │
+             │      ┌─────┴─────┐      │
+             │      ▼           ▼      │
+             │   Parser      Chunker   │
+             │                    │     │
+             │                    ▼     │
+             │               Embeddings│
+             │                    │     │
+             │                    ▼     ▼
+             │              PostgreSQL
+             │                + pgvector
+             │                    │
+             │                    ▼
+             │                Retrieval
+             │                    │
+             └────────────────────┘
+
+```
+Storage
+
+RAGX uses:
+
+```
+PostgreSQL for application data
+pgvector for vector storage and similarity search
+Object storage for uploaded documents
+```
+Documents and vectors are associated with projects and knowledge bases.
+
+API Keys
+
+Every project receives API keys for authenticated access.
+```
+Project
+   │
+   ├── API Keys
+   │
+   ├── Knowledge Bases
+   │
+   └── Documents
+```
+Example:
+```TS
+const ragx = new RAGX({
+  apiKey: "ragx_live_xxx"
+});
+```
+API keys should always be stored in environment variables.
+
+```
+
+RAGX_API_KEY=ragx_live_xxxxxxxxx
+
+```
+
+Never expose secret API keys in browser-side code.
+
+Supported Documents
+
+The initial ingestion pipeline targets:
+```
+
+PDF
+Markdown
+TXT
+HTML
+JSON
+CSV
+DOCX
+
+```
+
+More formats can be added through the ingestion pipeline.
+
+Retrieval Pipeline
+
+RAGX starts with semantic vector retrieval:
+```
+
+Query
+ ↓
+Embedding
+ ↓
+pgvector
+ ↓
+Similarity Search
+ ↓
+Top-K Chunks
+
+
+
+```
+The retrieval system is designed to evolve toward:
+
+```TS
+             Query
+               │
+        ┌──────┴──────┐
+        ▼             ▼
+   Vector Search   BM25 Search
+        │             │
+        └──────┬──────┘
+               ▼
+        Hybrid Retrieval
+               │
+               ▼
+            Reranker
+               │
+               ▼
+         Final Context
+
+```
+
+
+RAGX is currently an experimental project focused on building a retrieval infrastructure layer from first principles.
+
+The goal is to understand and implement the systems behind modern RAG applications rather than simply wrapping an existing framework.
+
+License
+
+MIT
