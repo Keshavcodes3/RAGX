@@ -9,19 +9,6 @@ import type {
   StructuredPage,
 } from "../Document/types";
 
-/**
- * Structured PDF extraction using the already-installed `pdf-parse` v2
- * (Bun-native, no new deps).
- *
- * Single PDFParse instance yields:
- * - getText()  -> per-page text
- * - getTable() -> per-page string[][] tables (line-geometry detection)
- * - getImage() -> per-page embedded images (metadata + optional dataUrl)
- * - getInfo()  -> total page count (fallback to text pages length)
- *
- * Headers are detected heuristically from text lines since the PDF
- * text layer carries no semantic heading tags.
- */
 
 function tableToMarkdown(rows: string[][]): string {
   if (rows.length === 0) return "";
