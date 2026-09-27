@@ -326,4 +326,36 @@ export class ProjectController {
       });
     }
   }
+
+  async rotateApiKey(req: Request<ApiKeyParams>, res: Response) {
+    try {
+      const userId = req.user.id;
+      const { projectId, apiKeyId } = req.params;
+
+      if (!projectId || !apiKeyId) {
+        return res.status(400).json({
+          success: false,
+          message: "Project ID and API key ID are required",
+        });
+      }
+
+      const apiKey = await this.projectService.rotateApiKey(
+        projectId,
+        userId,
+        apiKeyId,
+      );
+
+      return res.status(201).json({
+        success: true,
+        message:
+          "API key rotated successfully. The old key is revoked; copy the new key now, it will never be shown again.",
+        data: apiKey,
+      });
+    } catch (error) {
+      return res.status(getStatusCode(error, 404)).json({
+        success: false,
+        message: getErrorMessage(error, "Failed to rotate API key"),
+      });
+    }
+  }
 }

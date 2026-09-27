@@ -1,124 +1,276 @@
-import type { LlmConfig, RagxClientConfig } from "@repo/types";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
+import {
+  RAGX_PROVIDER_NAMES,
+  isRAGXProviderName,
+} from "@repo/types";
+import type {
+  AskResult,
+  BatchUploadResult,
+  Document,
+  RAGXConfig,
+  RAGXProviderName,
+  SearchResult,
+} from "@repo/types";
+
+export type {
+  AskResult,
+  BatchUploadResult,
+  Document,
+  RAGXConfig,
+  RAGXProviderName,
+  SearchResult,
+};
+
 
 export const DEFAULT_BASE_URL = "https://api.ragx.dev";
 
-const OPENAI_COMPATIBLE_BASE_URL: Record<string, string> = {
-  openai: "https://api.openai.com/v1",
-  groq: "https://api.groq.com/openai/v1",
-  openrouter: "https://openrouter.ai/api/v1",
-};
-
-function resolveLlmBaseUrl(llm: LlmConfig): string {
-  if (llm.baseUrl) return llm.baseUrl.replace(/\/$/, "");
-  const preset = OPENAI_COMPATIBLE_BASE_URL[llm.provider];
-  if (!preset) {
+function assertConfig(config: RAGXConfig): {
+  provider: RAGXProviderName;
+  providerApiKey: string;
+  ragxApiKey: string;
+} {
+  if (!config || !isRAGXProviderName(config.provider)) {
     throw new Error(
-      `Provider "${llm.provider}" has no default client-side endpoint yet. Pass llm.baseUrl explicitly.`,
+      `RAGX initialization failed: provider must be one of ${RAGX_PROVIDER_NAMES.join(", ")}.`,
     );
   }
-  return preset;
-}
-
-function assertConfig(config: RagxClientConfig): void {
-  if (!config.apiKey?.trim()) throw new Error("RAGX apiKey is required");
-  const llm = config.llm;
-  if (!llm) return;
-  if (!llm.provider) throw new Error("llm.provider is required when llm is set");
-  if (!llm.model?.trim()) throw new Error("llm.model is required when llm is set");
-  if (!llm.apiKey?.trim()) throw new Error("llm.apiKey is required when llm is set");
+  if (!config.providerApiKey?.trim()) {
+    throw new Error(
+      `RAGX initialization failed: providerApiKey is required when provider="${config.provider}".`,
+    );
+  }
+  if (!config.ragxApiKey?.trim()) {
+    throw new Error(
+      "RAGX initialization failed: ragxApiKey is required.",
+    );
+  }
+  return {
+    provider: config.provider,
+    providerApiKey: config.providerApiKey,
+    ragxApiKey: config.ragxApiKey,
+  };
 }
 
 export interface SearchOptions {
-  knowledgeBase?: string;
   topK?: number;
 }
 
-export interface SearchHit {
-  text: string;
-  score: number;
-  documentId: string;
-  page?: number;
+export interface UploadOptions {
+  /** Defaults to the file name (or "document" for raw bytes). */
+  name?: string;
+  /** Defaults to server-side detection from the name. */
+  mimeType?: string;
+}
+
+/** Anything the SDK can turn into bytes: path, buffer, or web Blob. */
+export type UploadInput = string | Uint8Array | Blob;
+
+/** One file inside a batch, with its own name when bytes carry none. */
+export interface BatchFileInput {
+  data: UploadInput;
+  name?: string;
+  mimeType?: string;
+}
+
+function isBatchItem(
+  file: UploadInput | BatchFileInput,
+): file is BatchFileInput {
+  return (
+    typeof file === "object" && file !== null && "data" in file
+  );
 }
 
 export class RAGX {
-  private readonly apiKey: string;
+  private readonly provider: RAGXProviderName;
+  private readonly providerApiKey: string;
+  private readonly ragxApiKey: string;
   private readonly baseUrl: string;
-  private readonly llm?: LlmConfig;
 
-  constructor(config: RagxClientConfig) {
-    assertConfig(config);
-    this.apiKey = config.apiKey;
+  readonly documents: {
+    upload(file: UploadInput, opts?: UploadOptions): Promise<Document>;
+    upload(
+      files: (UploadInput | BatchFileInput)[],
+      opts?: UploadOptions,
+    ): Promise<BatchUploadResult>;
+    list(): Promise<Document[]>;
+    delete(documentId: string): Promise<void>;
+  };
+
+  constructor(config: RAGXConfig) {
+    const valid = assertConfig(config);
+    this.provider = valid.provider;
+    // Kept in memory only. Sent to the RAGX server per request over the
+    // provider headers — never to the provider directly, never logged.
+    this.providerApiKey = valid.providerApiKey;
+    this.ragxApiKey = valid.ragxApiKey;
     this.baseUrl = (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
-    // Kept in memory only. Never sent to the RAGX API.
-    this.llm = config.llm;
+
+    this.documents = {
+      upload: ((
+        file: UploadInput | (UploadInput | BatchFileInput)[],
+        opts?: UploadOptions,
+      ): Promise<Document | BatchUploadResult> => {
+        if (Array.isArray(file)) {
+          return this.uploadBatch(file, opts);
+        }
+        return this.uploadDocument(file, opts);
+      }) as {
+        (file: UploadInput, opts?: UploadOptions): Promise<Document>;
+        (
+          files: (UploadInput | BatchFileInput)[],
+          opts?: UploadOptions,
+        ): Promise<BatchUploadResult>;
+      },
+      list: () => this.listDocuments(),
+      delete: (documentId) => this.deleteDocument(documentId),
+    };
   }
 
   private headers(): Record<string, string> {
     return {
-      Authorization: `Bearer ${this.apiKey}`,
+      Authorization: `Bearer ${this.ragxApiKey}`,
+      "X-Provider": this.provider,
+      "X-Provider-Key": this.providerApiKey,
       "Content-Type": "application/json",
     };
   }
 
-  async search(query: string, opts: SearchOptions = {}): Promise<SearchHit[]> {
-    const res = await fetch(`${this.baseUrl}/v1/search`, {
+  private async request<T>(
+    operation: string,
+    path: string,
+    init: { method?: string; body?: unknown } = {},
+  ): Promise<T> {
+    let res: Response;
+    try {
+      res = await fetch(`${this.baseUrl}${path}`, {
+        method: init.method ?? "GET",
+        headers: this.headers(),
+        body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      });
+    } catch {
+      throw new Error(`RAGX ${operation} failed: unreachable server`);
+    }
+
+    const data = (await res.json().catch(() => null)) as {
+      message?: string;
+      data?: T;
+    } | null;
+
+    if (!res.ok) {
+      throw new Error(
+        `RAGX ${operation} failed (${res.status}): ${data?.message ?? "request failed"}`,
+      );
+    }
+    return (data?.data ?? null) as T;
+  }
+
+  private async toUploadFile(
+    file: UploadInput,
+    opts: UploadOptions = {},
+  ): Promise<{ filename: string; mimeType?: string; contentBase64: string }> {
+    if (typeof file === "string") {
+      const bytes = await readFile(file);
+      return {
+        filename: opts.name ?? path.basename(file),
+        ...(opts.mimeType ? { mimeType: opts.mimeType } : {}),
+        contentBase64: bytes.toString("base64"),
+      };
+    }
+
+    if (typeof Blob !== "undefined" && file instanceof Blob) {
+      const bytes = Buffer.from(new Uint8Array(await file.arrayBuffer()));
+      const mimeType = opts.mimeType ?? file.type ?? undefined;
+      return {
+        filename: opts.name ?? "document",
+        ...(mimeType ? { mimeType } : {}),
+        contentBase64: bytes.toString("base64"),
+      };
+    }
+
+    const bytes = Buffer.from(file as Uint8Array);
+    return {
+      filename: opts.name ?? "document",
+      ...(opts.mimeType ? { mimeType: opts.mimeType } : {}),
+      contentBase64: bytes.toString("base64"),
+    };
+  }
+
+  private async uploadDocument(
+    file: UploadInput,
+    opts: UploadOptions = {},
+  ): Promise<Document> {
+    const single = await this.toUploadFile(file, opts);
+
+    return this.request<Document>("upload", "/v1/documents", {
       method: "POST",
-      headers: this.headers(),
-      body: JSON.stringify({
-        query,
-        knowledgeBase: opts.knowledgeBase,
-        topK: opts.topK ?? 5,
-      }),
+      body: {
+        name: single.filename,
+        ...(single.mimeType ? { mimeType: single.mimeType } : {}),
+        contentBase64: single.contentBase64,
+      },
     });
-    if (!res.ok) throw new Error(`RAGX search failed: ${res.status}`);
-    const data = (await res.json()) as { results: SearchHit[] };
+  }
+
+  private async uploadBatch(
+    files: (UploadInput | BatchFileInput)[],
+    opts: UploadOptions = {},
+  ): Promise<BatchUploadResult> {
+    // One API call; the server fans out to independent per-document jobs.
+    const normalized = await Promise.all(
+      files.map((file) => {
+        if (isBatchItem(file)) {
+          return this.toUploadFile(file.data, {
+            name: file.name ?? opts.name,
+            mimeType: file.mimeType ?? opts.mimeType,
+          });
+        }
+        return this.toUploadFile(file, opts);
+      }),
+    );
+
+    return this.request<BatchUploadResult>("upload", "/v1/documents/batch", {
+      method: "POST",
+      body: { files: normalized },
+    });
+  }
+
+  private async listDocuments(): Promise<Document[]> {
+    return this.request<Document[]>("list", "/v1/documents");
+  }
+
+  private async deleteDocument(documentId: string): Promise<void> {
+    await this.request<unknown>("delete", `/v1/documents/${documentId}`, {
+      method: "DELETE",
+    });
+  }
+
+  async search(query: string, opts: SearchOptions = {}): Promise<SearchResult[]> {
+    const data = await this.request<{ results: SearchResult[] }>(
+      "search",
+      "/v1/search",
+      {
+        method: "POST",
+        body: { query, topK: opts.topK ?? 5 },
+      },
+    );
     return data.results;
   }
 
-  /**
-   * Retrieval + generation in one call. Retrieval runs against RAGX,
-   * generation runs direct to the dev's LLM provider with THEIR key.
-   * RAGX never sees llm.apiKey.
-   */
-  async ask(query: string, opts: SearchOptions = {}): Promise<string> {
-    if (!this.llm) {
-      throw new Error("llm config is required for ask(). Pass llm:{provider,model,apiKey}.");
-    }
-    const hits = await this.search(query, opts);
-    const context = hits.map((h) => h.text).join("\n\n");
-    return completeWithOwnKey(this.llm, [
-      {
-        role: "system",
-        content: "Answer using only the provided context. Cite page numbers when present.",
-      },
-      { role: "user", content: `Context:\n${context}\n\nQuestion: ${query}` },
-    ]);
+  async retrieve(
+    query: string,
+    opts: SearchOptions = {},
+  ): Promise<SearchResult[]> {
+    return this.search(query, opts);
   }
-}
 
-export async function completeWithOwnKey(
-  llm: LlmConfig,
-  messages: { role: "system" | "user" | "assistant"; content: string }[],
-): Promise<string> {
-  const baseUrl = resolveLlmBaseUrl(llm);
-  const res = await fetch(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${llm.apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ model: llm.model, messages }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`LLM request failed (${llm.provider} ${res.status}): ${body.slice(0, 300)}`);
+  async ask(query: string, opts: SearchOptions = {}): Promise<AskResult> {
+    return this.request<AskResult>("ask", "/v1/ask", {
+      method: "POST",
+      body: { query, topK: opts.topK ?? 5 },
+    });
   }
-  const data = (await res.json()) as {
-    choices?: { message?: { content?: string } }[];
-  };
-  const content = data.choices?.[0]?.message?.content?.trim();
-  if (!content) throw new Error("LLM returned no content");
-  return content;
 }
 
 export default RAGX;

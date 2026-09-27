@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Boxes, FileText, KeyRound, LayoutGrid, Search } from "lucide-react";
+import { Boxes, FileText, LayoutGrid, Search } from "lucide-react";
 
 const TABS = [
   { href: "/dashboard", icon: LayoutGrid, label: "Home" },
   { href: "/dashboard/documents", icon: FileText, label: "Docs" },
   { href: "/dashboard/search", icon: Search, label: "Search" },
   { href: "/dashboard/projects", icon: Boxes, label: "Projects" },
-  { href: "/dashboard/api-keys", icon: KeyRound, label: "Keys" },
 ];
 
 export function MobileNav() {

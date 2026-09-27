@@ -11,10 +11,9 @@ const ACTIONS = [
   { label: "Go to Collections", hint: "Workspace", href: "/dashboard/collections" },
   { label: "Go to Search", hint: "Retrieval", href: "/dashboard/search" },
   { label: "Go to Chunks", hint: "Retrieval", href: "/dashboard/chunks" },
-  { label: "Go to API Keys", hint: "Developer", href: "/dashboard/api-keys" },
   { label: "Go to Usage", hint: "Developer", href: "/dashboard/usage" },
+  { label: "Go to Settings", hint: "Developer", href: "/dashboard/settings" },
   { label: "Upload documents", hint: "Action", href: "/dashboard/documents" },
-  { label: "Create API key", hint: "Action", href: "/dashboard/api-keys" },
 ];
 
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -96,7 +95,6 @@ const CRUMBS: Record<string, string> = {
   "/dashboard/collections": "Collections",
   "/dashboard/search": "Search",
   "/dashboard/chunks": "Chunks",
-  "/dashboard/api-keys": "API Keys",
   "/dashboard/usage": "Usage",
   "/dashboard/settings": "Settings",
 };

@@ -12,6 +12,7 @@ import type {
   CreateApiKeyResponse,
   CreateProjectInput,
 } from "@repo/types";
+import { toKeyPreview } from "@repo/types";
 
 export class ProjectRepository {
   private DB = db;
@@ -116,10 +117,12 @@ export class ProjectRepository {
         projectId,
         name,
         keyHash,
+        keyPreview: toKeyPreview(apiKey),
       })
       .returning({
         id: ApiKeys.id,
         name: ApiKeys.name,
+        keyPreview: ApiKeys.keyPreview,
         projectId: ApiKeys.projectId,
         createdAt: ApiKeys.createdAt,
       });
@@ -133,6 +136,7 @@ export class ProjectRepository {
       name: createdKey.name,
       projectId: createdKey.projectId,
       createdAt: createdKey.createdAt,
+      keyPreview: createdKey.keyPreview ?? toKeyPreview(apiKey),
       key: apiKey,
     };
   }
@@ -143,6 +147,7 @@ export class ProjectRepository {
         id: ApiKeys.id,
         projectId: ApiKeys.projectId,
         name: ApiKeys.name,
+        keyPreview: ApiKeys.keyPreview,
         createdAt: ApiKeys.createdAt,
         updatedAt: ApiKeys.updatedAt,
         revokedAt: ApiKeys.revokedAt,
@@ -157,6 +162,7 @@ export class ProjectRepository {
         id: ApiKeys.id,
         projectId: ApiKeys.projectId,
         name: ApiKeys.name,
+        keyPreview: ApiKeys.keyPreview,
         createdAt: ApiKeys.createdAt,
         updatedAt: ApiKeys.updatedAt,
       })
@@ -175,6 +181,7 @@ export class ProjectRepository {
         id: ApiKeys.id,
         projectId: ApiKeys.projectId,
         name: ApiKeys.name,
+        keyPreview: ApiKeys.keyPreview,
         createdAt: ApiKeys.createdAt,
         updatedAt: ApiKeys.updatedAt,
         revokedAt: ApiKeys.revokedAt,

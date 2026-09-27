@@ -126,12 +126,12 @@ export class ProjectService {
 
     return apiKey;
   }
-
   async revokeApiKey(
     projectId: string,
     userId: string,
     apiKeyId: string,
   ) {
+
     await this.requireOwnedProject(projectId, userId);
 
     const apiKey = await this.projectRepository.getApiKey(
@@ -157,6 +157,38 @@ export class ProjectService {
     }
 
     return revokedKey;
+  }
+
+  async rotateApiKey(
+    projectId: string,
+    userId: string,
+    apiKeyId: string,
+  ) {
+    await this.requireOwnedProject(projectId, userId);
+
+    const existing = await this.projectRepository.getApiKey(
+      projectId,
+      apiKeyId,
+    );
+
+    if (!existing) {
+      throw new NotFoundError("API key not found");
+    }
+
+    if (existing.revokedAt) {
+      throw new BadRequestError("API key is already revoked");
+    }
+
+    // Issue the replacement first so a failure never locks the caller out,
+    // then invalidate the old key. The raw key is returned exactly once.
+    const created = await this.projectRepository.createApiKey(
+      projectId,
+      existing.name,
+    );
+
+    await this.projectRepository.revokeApiKey(projectId, apiKeyId);
+
+    return created;
   }
 
   async authenticateApiKey(keyHash: string) {

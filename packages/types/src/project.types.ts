@@ -16,6 +16,8 @@ export interface CreateApiKeyResponse {
   id: string;
   name: string;
   key: string;
+  /** Non-secret display hint. Returned alongside the one-time raw key. */
+  keyPreview: string;
   projectId: string;
   createdAt: Date;
 }

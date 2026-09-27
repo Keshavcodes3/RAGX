@@ -9,7 +9,6 @@ import {
   Boxes,
   FileText,
   FolderOpen,
-  KeyRound,
   LayoutGrid,
   Search,
   Settings,
@@ -39,7 +38,6 @@ const SECTIONS: { label: string; items: { href: string; label: string; icon: typ
   {
     label: "Developer",
     items: [
-      { href: "/dashboard/api-keys", label: "API Keys", icon: KeyRound },
       { href: "/dashboard/usage", label: "Usage", icon: ChartColumn },
       { href: "/dashboard/settings", label: "Settings", icon: Settings },
     ],

@@ -29,7 +29,7 @@ const RECENT_QUERIES = [
 const QUICK_LINKS = [
   { label: "Upload documents", href: "/dashboard/documents" },
   { label: "Open playground", href: "/dashboard/search" },
-  { label: "Manage API keys", href: "/dashboard/api-keys" },
+  { label: "Project settings", href: "/dashboard/settings" },
   { label: "Read the docs", href: "/docs" },
 ];
 

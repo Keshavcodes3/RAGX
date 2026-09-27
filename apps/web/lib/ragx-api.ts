@@ -20,40 +20,27 @@ export interface Project {
   description?: string | null;
 }
 
-export interface ApiKeyItem {
+export type DocumentStatus =
+  | "PENDING"
+  | "PROCESSING"
+  | "COMPLETED"
+  | "FAILED";
+
+export interface ApiDocument {
   id: string;
-  projectId: string;
-  name: string;
-  keyPreview: string | null;
+  filename: string;
+  mimeType: string;
+  size: number;
+  status: DocumentStatus;
+  chunks: number;
   createdAt: string;
-  updatedAt: string;
-  revokedAt: string | null;
 }
 
-export interface CreatedApiKey extends ApiKeyItem {
-  /** Raw key, returned exactly once at creation/rotation. */
-  key: string;
-}
-
-export interface EmbeddingMeta {
-  provider: "openai" | "mistral";
-  model: string;
-  configured: true;
-  apiKeyPreview: string;
-  updatedAt: string;
-}
-
-export interface VectorStoreMeta {
-  provider: "pinecone" | "qdrant" | "pgvector";
-  configured: true;
-  apiKeyPreview?: string;
-  details: Record<string, string>;
-  updatedAt: string;
-}
-
-export interface ProvidersState {
-  embedding: EmbeddingMeta | null;
-  vectorStore: VectorStoreMeta | null;
+export interface BatchDocumentSummary {
+  id: string | null;
+  filename: string;
+  status: DocumentStatus;
+  error?: string;
 }
 
 async function request<T>(
@@ -96,43 +83,18 @@ export const ragxApi = {
 
   projects: () => request<Project[]>("/projects"),
 
-  apiKeys: (projectId: string) =>
-    request<ApiKeyItem[]>(`/projects/${projectId}/api-keys`),
-  createApiKey: (projectId: string, name: string) =>
-    request<CreatedApiKey>(`/projects/${projectId}/api-keys`, {
-      method: "POST",
-      body: { name },
-    }),
-  rotateApiKey: (projectId: string, apiKeyId: string) =>
-    request<CreatedApiKey>(`/projects/${projectId}/api-keys/${apiKeyId}/rotate`, {
-      method: "POST",
-    }),
-  revokeApiKey: (projectId: string, apiKeyId: string) =>
-    request<unknown>(`/projects/${projectId}/api-keys/${apiKeyId}`, {
-      method: "DELETE",
-    }),
-
-  providers: (projectId: string) =>
-    request<ProvidersState>(`/projects/${projectId}/providers`),
-  saveEmbedding: (
+  projectDocuments: (projectId: string) =>
+    request<ApiDocument[]>(`/projects/${projectId}/documents`),
+  uploadProjectDocuments: (
     projectId: string,
-    body: { provider: string; model: string; apiKey: string },
+    files: { filename: string; mimeType?: string; contentBase64: string }[],
   ) =>
-    request<EmbeddingMeta>(`/projects/${projectId}/providers/embedding`, {
-      method: "PUT",
-      body,
-    }),
-  deleteEmbedding: (projectId: string) =>
-    request<unknown>(`/projects/${projectId}/providers/embedding`, {
-      method: "DELETE",
-    }),
-  saveVectorStore: (projectId: string, body: Record<string, unknown>) =>
-    request<VectorStoreMeta>(`/projects/${projectId}/providers/vector-store`, {
-      method: "PUT",
-      body,
-    }),
-  deleteVectorStore: (projectId: string) =>
-    request<unknown>(`/projects/${projectId}/providers/vector-store`, {
+    request<{ documents: BatchDocumentSummary[] }>(
+      `/projects/${projectId}/documents`,
+      { method: "POST", body: { files } },
+    ),
+  deleteProjectDocument: (projectId: string, documentId: string) =>
+    request<unknown>(`/projects/${projectId}/documents/${documentId}`, {
       method: "DELETE",
     }),
 };
