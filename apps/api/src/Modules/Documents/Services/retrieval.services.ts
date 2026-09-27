@@ -1,24 +1,16 @@
 import { resolveRequestProvider } from "../../Providers/Runtime/resolution";
 import { createEmbeddingProvider } from "../../Ingestion/Embeddings/embedding.registry";
+import { cosineSimilarity } from "../../Ingestion/VectorStore/similarity";
 import { ProviderService } from "../../Providers/Services/provider.services";
 import { DocumentRepository } from "../Repository/document.repo";
 import type { ProviderHeaders } from "./document.services";
 
 import type { AskResult, SearchResult } from "@repo/types";
 
-function cosineSimilarity(a: number[], b: number[]): number {
-  let dot = 0;
-  let normA = 0;
-  let normB = 0;
-  const length = Math.min(a.length, b.length);
-  for (let i = 0; i < length; i++) {
-    dot += a[i]! * b[i]!;
-    normA += a[i]! * a[i]!;
-    normB += b[i]! * b[i]!;
-  }
-  if (normA === 0 || normB === 0) return 0;
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
-}
+// NOTE: cosine ranking lives in `Ingestion/VectorStore/similarity.ts` —
+// shared with semantic chunking so both rank identically. Vectors are
+// stored as JSONB today (`document_chunk.embedding`) and ranked in-JS;
+// the VectorStore abstraction owns the migration to pgvector ordering.
 
 export class RetrievalService {
   constructor(

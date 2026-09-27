@@ -1,19 +1,26 @@
 import app from "@/app";
 import { envConfig } from "@/config/envConfig";
-import { DocumentService } from "@/Modules/Documents/Services/document.services";
+import { createProcessDocumentHandler } from "@/Modules/Documents/Jobs/handlers/process-document.job";
 import { initDocumentJobs, recoverPendingDocuments } from "@/Modules/Documents/Jobs/document.jobs";
+import { DocumentService } from "@/Modules/Documents/Services/document.services";
 
 
+
+// NOTE: server entry — wiring only, no business logic.
+// HTTP → validation → auth → controller → service → repository → database.
+// Background work fans out through the in-process job queue; see
+// `Modules/Documents/Jobs/*`.
 
 // Single shared engine for background document processing.
+// WHY one instance: repositories/storage are stateless wrappers around
+// the pooled `db` driver, so sharing avoids per-job construction while
+// keeping tests free to inject fakes via constructor parameters.
 const documentService = new DocumentService();
 
-initDocumentJobs((job) =>
-  documentService.processDocument(job.projectId, job.documentId, {
-    providerName: job.providerName,
-    providerKey: job.providerKey,
-  }),
-);
+// WHY a handler factory: queue orchestration (concurrency, recovery)
+// stays in `document.jobs.ts`; the per-document workflow binding lives
+// in `handlers/process-document.job.ts` and is wired exactly once here.
+initDocumentJobs(createProcessDocumentHandler(documentService));
 
 
 
@@ -31,3 +38,6 @@ app.listen(envConfig.PORT,()=>{
       },
     );
 })
+
+// TODO: add SIGTERM/SIGINT draining (stop accepting jobs, await in-flight
+// `processDocument` calls) so deploys never orphan PROCESSING rows.

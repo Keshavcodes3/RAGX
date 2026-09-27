@@ -3,18 +3,25 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowLeft, Check, ChevronDown, Copy, Search } from "lucide-react";
+import {
+  ArrowUpRight,
+  Check,
+  ChevronDown,
+  Copy,
+  Search,
+  Terminal,
+} from "lucide-react";
 import { LogoMark } from "../../components/Logo";
 
 const SECTIONS = [
   { id: "start", label: "Quickstart" },
-  { id: "process", label: "What it does" },
-  { id: "parsing", label: "How parsing works" },
-  { id: "versus", label: "Traditional vs RAGX" },
-  { id: "safety", label: "Process safety" },
-  { id: "concepts", label: "Core concepts" },
-  { id: "api", label: "API reference" },
-  { id: "sdk", label: "SDK & BYOK" },
+  { id: "process", label: "Pipeline" },
+  { id: "parsing", label: "Parsing" },
+  { id: "versus", label: "RAGX vs DIY" },
+  { id: "safety", label: "Security" },
+  { id: "concepts", label: "Concepts" },
+  { id: "api", label: "API" },
+  { id: "sdk", label: "SDK" },
 ] as const;
 
 interface Route {
@@ -29,126 +36,433 @@ interface Route {
 const BASE = "http://localhost:3000/api/v1";
 
 const ROUTES: Route[] = [
-  { method: "POST", path: "/auth/register", desc: "Create account", auth: "cookie",
-    req: `curl -X POST ${BASE}/auth/register \\\n  -H "Content-Type: application/json" \\\n  -d '{"username":"keshav","email":"you@dev.io","password":"••••••••"}'`,
-    res: `{\n  "id": "usr_9f2a",\n  "username": "keshav",\n  "email": "you@dev.io"\n}` },
-  { method: "POST", path: "/auth/login", desc: "Sets httpOnly session cookie", auth: "cookie",
-    req: `curl -X POST ${BASE}/auth/login -c cookies.txt \\\n  -H "Content-Type: application/json" \\\n  -d '{"email":"you@dev.io","password":"••••••••"}'`,
-    res: `{\n  "id": "usr_9f2a",\n  "username": "keshav"\n}` },
-  { method: "GET", path: "/auth/me", desc: "Current user", auth: "cookie",
+  {
+    method: "POST",
+    path: "/auth/register",
+    desc: "Create account",
+    auth: "cookie",
+    req: `curl -X POST ${BASE}/auth/register \\
+  -H "Content-Type: application/json" \\
+  -d '{"username":"keshav","email":"you@dev.io","password":"••••••••"}'`,
+    res: `{
+  "id": "usr_9f2a",
+  "username": "keshav",
+  "email": "you@dev.io"
+}`,
+  },
+  {
+    method: "POST",
+    path: "/auth/login",
+    desc: "Create session",
+    auth: "cookie",
+    req: `curl -X POST ${BASE}/auth/login -c cookies.txt \\
+  -H "Content-Type: application/json" \\
+  -d '{"email":"you@dev.io","password":"••••••••"}'`,
+    res: `{
+  "id": "usr_9f2a",
+  "username": "keshav"
+}`,
+  },
+  {
+    method: "GET",
+    path: "/auth/me",
+    desc: "Current user",
+    auth: "cookie",
     req: `curl ${BASE}/auth/me -b cookies.txt`,
-    res: `{\n  "id": "usr_9f2a",\n  "email": "you@dev.io"\n}` },
-  { method: "POST", path: "/auth/logout", desc: "Clear session", auth: "cookie",
+    res: `{
+  "id": "usr_9f2a",
+  "email": "you@dev.io"
+}`,
+  },
+  {
+    method: "POST",
+    path: "/auth/logout",
+    desc: "Clear session",
+    auth: "cookie",
     req: `curl -X POST ${BASE}/auth/logout -b cookies.txt`,
-    res: `{\n  "success": true\n}` },
-  { method: "POST", path: "/projects", desc: "Create + Default key", auth: "key",
-    req: `curl -X POST ${BASE}/projects \\\n  -H "Authorization: Bearer ragx_live_•••" \\\n  -H "Content-Type: application/json" \\\n  -d '{"name":"Docs Assistant"}'`,
-    res: `{\n  "project": { "id": "prj_8f92", "name": "Docs Assistant" },\n  "apiKey": { "key": "ragx_live_•••", "note": "shown once" }\n}` },
-  { method: "GET", path: "/projects", desc: "List your projects", auth: "key",
-    req: `curl ${BASE}/projects \\\n  -H "Authorization: Bearer ragx_live_•••"`,
-    res: `[\n  { "id": "prj_8f92", "name": "Docs Assistant" }\n]` },
-  { method: "GET", path: "/projects/:projectId", desc: "One project", auth: "key",
-    req: `curl ${BASE}/projects/prj_8f92 \\\n  -H "Authorization: Bearer ragx_live_•••"`,
-    res: `{\n  "id": "prj_8f92",\n  "name": "Docs Assistant",\n  "documents": 482\n}` },
-  { method: "PATCH", path: "/projects/:projectId", desc: "Rename / describe", auth: "key",
-    req: `curl -X PATCH ${BASE}/projects/prj_8f92 \\\n  -H "Authorization: Bearer ragx_live_•••" \\\n  -H "Content-Type: application/json" \\\n  -d '{"description":"Support knowledge"}'`,
-    res: `{\n  "id": "prj_8f92",\n  "description": "Support knowledge"\n}` },
-  { method: "DELETE", path: "/projects/:projectId", desc: "Delete + cascade", auth: "key",
-    req: `curl -X DELETE ${BASE}/projects/prj_8f92 \\\n  -H "Authorization: Bearer ragx_live_•••"`,
-    res: `{\n  "success": true\n}` },
-  { method: "POST", path: "/projects/:projectId/api-keys", desc: "Mint a key (shown once)", auth: "key",
-    req: `curl -X POST ${BASE}/projects/prj_8f92/api-keys \\\n  -H "Authorization: Bearer ragx_live_•••" \\\n  -H "Content-Type: application/json" \\\n  -d '{"name":"ios-app"}'`,
-    res: `{\n  "id": "key_41bd",\n  "key": "rgx_live_•••",\n  "note": "copy now — never shown again"\n}` },
-  { method: "GET", path: "/projects/:projectId/api-keys", desc: "List key previews", auth: "key",
-    req: `curl ${BASE}/projects/prj_8f92/api-keys \\\n  -H "Authorization: Bearer ragx_live_•••"`,
-    res: `[\n  { "id": "key_41bd", "preview": "rgx_live_••••••", "name": "ios-app" }\n]` },
-  { method: "DELETE", path: "/projects/:projectId/api-keys/:apiKeyId", desc: "Revoke (soft)", auth: "key",
-    req: `curl -X DELETE ${BASE}/projects/prj_8f92/api-keys/key_41bd \\\n  -H "Authorization: Bearer ragx_live_•••"`,
-    res: `{\n  "id": "key_41bd",\n  "revokedAt": "2026-09-25T…"\n}` },
+    res: `{
+  "success": true
+}`,
+  },
+  {
+    method: "POST",
+    path: "/projects",
+    desc: "Create project",
+    auth: "key",
+    req: `curl -X POST ${BASE}/projects \\
+  -H "Authorization: Bearer ragx_live_•••" \\
+  -H "Content-Type: application/json" \\
+  -d '{"name":"Docs Assistant"}'`,
+    res: `{
+  "project": {
+    "id": "prj_8f92",
+    "name": "Docs Assistant"
+  },
+  "apiKey": {
+    "key": "ragx_live_•••",
+    "note": "shown once"
+  }
+}`,
+  },
+  {
+    method: "GET",
+    path: "/projects",
+    desc: "List projects",
+    auth: "key",
+    req: `curl ${BASE}/projects \\
+  -H "Authorization: Bearer ragx_live_•••"`,
+    res: `[
+  {
+    "id": "prj_8f92",
+    "name": "Docs Assistant"
+  }
+]`,
+  },
+  {
+    method: "GET",
+    path: "/projects/:projectId",
+    desc: "Get project",
+    auth: "key",
+    req: `curl ${BASE}/projects/prj_8f92 \\
+  -H "Authorization: Bearer ragx_live_•••"`,
+    res: `{
+  "id": "prj_8f92",
+  "name": "Docs Assistant",
+  "documents": 482
+}`,
+  },
+  {
+    method: "PATCH",
+    path: "/projects/:projectId",
+    desc: "Update project",
+    auth: "key",
+    req: `curl -X PATCH ${BASE}/projects/prj_8f92 \\
+  -H "Authorization: Bearer ragx_live_•••" \\
+  -H "Content-Type: application/json" \\
+  -d '{"description":"Support knowledge"}'`,
+    res: `{
+  "id": "prj_8f92",
+  "description": "Support knowledge"
+}`,
+  },
+  {
+    method: "DELETE",
+    path: "/projects/:projectId",
+    desc: "Delete project",
+    auth: "key",
+    req: `curl -X DELETE ${BASE}/projects/prj_8f92 \\
+  -H "Authorization: Bearer ragx_live_•••"`,
+    res: `{
+  "success": true
+}`,
+  },
+  {
+    method: "POST",
+    path: "/projects/:projectId/api-keys",
+    desc: "Mint API key",
+    auth: "key",
+    req: `curl -X POST ${BASE}/projects/prj_8f92/api-keys \\
+  -H "Authorization: Bearer ragx_live_•••" \\
+  -H "Content-Type: application/json" \\
+  -d '{"name":"ios-app"}'`,
+    res: `{
+  "id": "key_41bd",
+  "key": "rgx_live_•••",
+  "note": "copy now — never shown again"
+}`,
+  },
+  {
+    method: "GET",
+    path: "/projects/:projectId/api-keys",
+    desc: "List API keys",
+    auth: "key",
+    req: `curl ${BASE}/projects/prj_8f92/api-keys \\
+  -H "Authorization: Bearer ragx_live_•••"`,
+    res: `[
+  {
+    "id": "key_41bd",
+    "preview": "rgx_live_••••••",
+    "name": "ios-app"
+  }
+]`,
+  },
+  {
+    method: "DELETE",
+    path: "/projects/:projectId/api-keys/:apiKeyId",
+    desc: "Revoke API key",
+    auth: "key",
+    req: `curl -X DELETE ${BASE}/projects/prj_8f92/api-keys/key_41bd \\
+  -H "Authorization: Bearer ragx_live_•••"`,
+    res: `{
+  "id": "key_41bd",
+  "revokedAt": "2026-09-25T…"
+}`,
+  },
 ];
 
-function Code({ code, title, light = false, wrap = true }: { code: string; title?: string; light?: boolean; wrap?: boolean }) {
+const METHOD_COLOR: Record<Route["method"], string> = {
+  GET: "#0071E3",
+  POST: "#18864B",
+  PATCH: "#B45309",
+  DELETE: "#D1242F",
+};
+
+const PIPELINE = [
+  {
+    n: "01",
+    title: "Load",
+    meta: "INPUT",
+    text: "Accept PDF, DOCX, TXT, MD, HTML and CSV. Unsupported formats fail explicitly.",
+  },
+  {
+    n: "02",
+    title: "Parse",
+    meta: "STRUCTURE",
+    text: "Recover headings, paragraphs, tables, images and code into one normalized representation.",
+  },
+  {
+    n: "03",
+    title: "Chunk",
+    meta: "CONTEXT",
+    text: "Split recursively while preserving header paths, page numbers and atomic tables.",
+  },
+  {
+    n: "04",
+    title: "Embed",
+    meta: "VECTOR",
+    text: "Generate embeddings and hash-cache identical content to avoid duplicate work.",
+  },
+  {
+    n: "05",
+    title: "Retrieve",
+    meta: "SEARCH",
+    text: "Embed the query, search pgvector, filter weak matches and optionally rerank.",
+  },
+  {
+    n: "06",
+    title: "Context",
+    meta: "OUTPUT",
+    text: "Return text, similarity score, document, page and section. Generation stays yours.",
+  },
+];
+
+function Code({
+  code,
+  title,
+  light = false,
+}: {
+  code: string;
+  title?: string;
+  light?: boolean;
+}) {
   const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1400);
+    } catch {}
+  };
+
   return (
-    <div className={`group overflow-hidden rounded-xl border ${light ? "border-[#E8E8ED] bg-[#F5F5F7]" : "border-[#E8E8ED] bg-[#1D1D1F]"}`}>
-      <div className={`flex items-center justify-between border-b px-4 py-2 ${light ? "border-[#E8E8ED]" : "border-white/10"}`}>
-        <span className={`font-mono text-xs ${light ? "text-[#6E6E73]" : "text-white/40"}`}>{title ?? "code"}</span>
-        <button
-          onClick={() => {
-            void navigator.clipboard?.writeText(code).catch(() => {});
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1400);
-          }}
-          className={`flex items-center gap-1 font-mono text-xs transition-colors ${light ? "text-[#6E6E73] hover:text-[#1D1D1F]" : "text-white/40 hover:text-white"}`}
+    <div
+      className={[
+        "overflow-hidden border",
+        light
+          ? "border-[#E5E5EA] bg-[#F7F7F8]"
+          : "border-white/[0.08] bg-[#161617]",
+      ].join(" ")}
+    >
+      <div
+        className={[
+          "flex h-10 items-center justify-between border-b px-4",
+          light ? "border-[#E5E5EA]" : "border-white/[0.08]",
+        ].join(" ")}
+      >
+        <span
+          className={[
+            "font-mono text-[11px]",
+            light ? "text-[#86868B]" : "text-white/35",
+          ].join(" ")}
         >
-          {copied ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
+          {title ?? "code"}
+        </span>
+
+        <button
+          onClick={copy}
+          className={[
+            "flex items-center gap-1.5 font-mono text-[11px] transition-colors",
+            light
+              ? "text-[#86868B] hover:text-[#1D1D1F]"
+              : "text-white/35 hover:text-white",
+          ].join(" ")}
+        >
+          {copied ? (
+            <Check className="size-3.5 text-[#0071E3]" />
+          ) : (
+            <Copy className="size-3.5" />
+          )}
           {copied ? "copied" : "copy"}
         </button>
       </div>
-      <pre className={`p-5 font-mono text-[12.5px] leading-[1.75] ${wrap ? "whitespace-pre-wrap break-words" : "overflow-x-auto"} ${light ? "text-[#1D1D1F]" : "text-white/85"}`}>
+
+      <pre
+        className={[
+          "overflow-x-auto p-5 font-mono text-[12px] leading-[1.8]",
+          light ? "text-[#1D1D1F]" : "text-white/80",
+        ].join(" ")}
+      >
         <code>{code}</code>
       </pre>
     </div>
   );
 }
 
-const METHOD_COLOR: Record<Route["method"], string> = {
-  GET: "text-[#0071E3]",
-  POST: "text-emerald-600",
-  PATCH: "text-amber-600",
-  DELETE: "text-red-600",
-};
-
-const STAGE_DETAIL: { n: string; title: string; lines: string[] }[] = [
-  { n: "01", title: "Load", lines: ["Accepts PDF, DOCX, TXT, MD, HTML, CSV — rejected otherwise, loudly.", "File is read once into memory; nothing is written to disk unprocessed."] },
-  { n: "02", title: "Parse", lines: ["Format-specific loader recovers headings, paragraphs, tables, images, code.", "Output is one uniform structure — downstream stages never care about file type."] },
-  { n: "03", title: "Chunk", lines: ["Recursive splitting with overlap; tables are atomic and never cut.", "Each chunk inherits its header path and page number as context."] },
-  { n: "04", title: "Embed", lines: ["Hosted 384-dim vectors. Identical text is hash-cached — embedded once.", "Model name and dimensions are stored per chunk for future migration."] },
-  { n: "05", title: "Retrieve", lines: ["Query is embedded with the same model; pgvector returns top-K by similarity.", "Min-score filtering and optional cross-encoder rerank before responding."] },
-  { n: "06", title: "Context", lines: ["Chunks ship with text, score, document id, page and section.", "Your LLM turns them into answers — RAGX never generates."] },
-];
-
-function PipelineDeepDive() {
-  const [open, setOpen] = useState<string | null>("03");
+function RetrievalVisual() {
   return (
-    <div className="mt-6 overflow-hidden rounded-xl border border-[#E8E8ED]">
-      {STAGE_DETAIL.map((s, i) => {
-        const isOpen = open === s.n;
-        return (
-          <div key={s.n} className={i > 0 ? "border-t border-[#E8E8ED]" : ""}>
-            <button
-              onClick={() => setOpen(isOpen ? null : s.n)}
-              className={`flex w-full items-center gap-4 px-5 py-3.5 text-left transition-colors ${isOpen ? "bg-[#F5F5F7]/70" : "hover:bg-[#FAFAFA]"}`}
+    <div className="relative h-[260px] w-full overflow-hidden border border-[#E5E5EA] bg-[#FAFAFA]">
+      <div
+        className="absolute inset-0 opacity-[0.35]"
+        style={{
+          backgroundImage:
+            "linear-gradient(#E5E5EA 1px, transparent 1px), linear-gradient(90deg, #E5E5EA 1px, transparent 1px)",
+          backgroundSize: "28px 28px",
+        }}
+      />
+
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="relative w-[280px]">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, x: -18 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{
+                delay: i * 0.08,
+                duration: 0.5,
+              }}
+              className={[
+                "absolute left-0 h-8 border bg-white",
+                i === 2
+                  ? "w-[190px] border-[#0071E3]/30 bg-[#0071E3]/[0.06]"
+                  : "w-[150px] border-[#E5E5EA]",
+              ].join(" ")}
+              style={{
+                top: `${i * 39}px`,
+                left: `${i % 2 === 0 ? 0 : 22}px`,
+              }}
             >
-              <motion.span
-                initial={{ opacity: 0, scale: 0.85 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.08 }}
-                className={`grid size-7 shrink-0 place-items-center rounded-full border font-mono text-[11px] font-semibold ${isOpen ? "border-[#0071E3] bg-[#0071E3] text-white" : "border-[#E8E8ED] text-[#1D1D1F]"}`}
+              <div className="flex h-full items-center px-3">
+                <div
+                  className={[
+                    "h-1.5 rounded-full",
+                    i === 2
+                      ? "w-[115px] bg-[#0071E3]"
+                      : "w-[75px] bg-[#D2D2D7]",
+                  ].join(" ")}
+                />
+              </div>
+            </motion.div>
+          ))}
+
+          <motion.div
+            initial={{ opacity: 0, x: 80 }}
+            animate={{ opacity: [0, 1, 1, 0], x: [80, 25, 0, -12] }}
+            transition={{
+              duration: 2.6,
+              repeat: Infinity,
+              repeatDelay: 1.4,
+              ease: "easeInOut",
+            }}
+            className="absolute -right-4 top-[72px] flex items-center gap-3"
+          >
+            <div className="h-px w-12 bg-[#0071E3]" />
+
+            <div className="grid size-9 place-items-center rounded-full border border-[#0071E3]/30 bg-white shadow-[0_4px_18px_rgba(0,113,227,0.14)]">
+              <ArrowUpRight className="size-4 text-[#0071E3]" />
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0, 1, 0] }}
+            transition={{
+              duration: 2.6,
+              repeat: Infinity,
+              repeatDelay: 1.4,
+              times: [0, 0.35, 1],
+            }}
+            className="absolute -bottom-12 left-0 font-mono text-[10px] uppercase tracking-[0.18em] text-[#0071E3]"
+          >
+            relevant context
+          </motion.div>
+        </div>
+      </div>
+
+      <div className="absolute bottom-4 left-5 font-mono text-[10px] uppercase tracking-[0.18em] text-[#86868B]">
+        RAGX / RETRIEVAL TRACE
+      </div>
+    </div>
+  );
+}
+
+function PipelineExplorer() {
+  const [open, setOpen] = useState("03");
+
+  return (
+    <div className="border border-[#E5E5EA]">
+      {PIPELINE.map((stage, i) => {
+        const isOpen = open === stage.n;
+
+        return (
+          <div
+            key={stage.n}
+            className={i > 0 ? "border-t border-[#E5E5EA]" : ""}
+          >
+            <button
+              onClick={() => setOpen(isOpen ? "" : stage.n)}
+              className="group flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-[#FAFAFA]"
+            >
+              <span
+                className={[
+                  "font-mono text-[11px] font-medium",
+                  isOpen ? "text-[#0071E3]" : "text-[#86868B]",
+                ].join(" ")}
               >
-                {s.n}
-              </motion.span>
-              <span className="flex-1 text-[15px] font-semibold">{s.title}</span>
-              <ChevronDown className={`size-4 shrink-0 text-[#6E6E73] transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+                {stage.n}
+              </span>
+
+              <span className="w-20 text-[14px] font-semibold">
+                {stage.title}
+              </span>
+
+              <span className="hidden flex-1 font-mono text-[10px] uppercase tracking-[0.16em] text-[#AEAEB2] sm:block">
+                {stage.meta}
+              </span>
+
+              <ChevronDown
+                className={[
+                  "size-4 text-[#86868B] transition-transform",
+                  isOpen ? "rotate-180" : "",
+                ].join(" ")}
+              />
             </button>
+
             <AnimatePresence initial={false}>
               {isOpen && (
                 <motion.div
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: "auto", opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.22, ease: "easeOut" }}
+                  transition={{ duration: 0.22 }}
                   className="overflow-hidden"
                 >
-                  <ul className="space-y-2 border-t border-[#E8E8ED] bg-white px-5 py-4 pl-[60px]">
-                    {s.lines.map((l) => (
-                      <li key={l} className="flex gap-2.5 text-[14px] leading-relaxed text-[#6E6E73]">
-                        <span className="mt-[8px] size-1 shrink-0 rounded-full bg-[#0071E3]" aria-hidden />
-                        {l}
-                      </li>
-                    ))}
-                  </ul>
+                  <div className="border-t border-[#E5E5EA] bg-[#FAFAFA] px-5 py-5 pl-[76px]">
+                    <p className="max-w-2xl text-[14px] leading-7 text-[#6E6E73]">
+                      {stage.text}
+                    </p>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -160,43 +474,81 @@ function PipelineDeepDive() {
 }
 
 function Explorer({ routes }: { routes: Route[] }) {
-  const [open, setOpen] = useState<string | null>(ROUTES[0]?.path ?? null);
+  const [open, setOpen] = useState<string | null>(routes[0]?.path ?? null);
+
+  useEffect(() => {
+    if (!routes.some((route) => route.path === open)) {
+      setOpen(routes[0]?.path ?? null);
+    }
+  }, [routes, open]);
+
   return (
-    <div className="overflow-hidden rounded-xl border border-[#E8E8ED]">
-      {routes.map((r, i) => {
-        const isOpen = open === r.path;
+    <div className="border border-[#E5E5EA]">
+      {routes.map((route, index) => {
+        const isOpen = open === route.path;
+
         return (
-          <div key={r.path} className={i > 0 ? "border-t border-[#E8E8ED]" : ""}>
+          <div
+            key={`${route.method}-${route.path}`}
+            className={index > 0 ? "border-t border-[#E5E5EA]" : ""}
+          >
             <button
-              onClick={() => setOpen(isOpen ? null : r.path)}
-              className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${isOpen ? "bg-[#F5F5F7]/70" : "hover:bg-[#FAFAFA]"}`}
+              onClick={() => setOpen(isOpen ? null : route.path)}
+              className="group flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-[#FAFAFA]"
             >
-              <span className={`w-14 shrink-0 font-mono text-[12px] font-semibold ${METHOD_COLOR[r.method]}`}>
-                {r.method}
+              <span
+                className="w-14 shrink-0 font-mono text-[11px] font-semibold"
+                style={{ color: METHOD_COLOR[route.method] }}
+              >
+                {route.method}
               </span>
-              <code className="min-w-0 flex-1 truncate font-mono text-[13px]">{r.path}</code>
-              <span className="hidden shrink-0 rounded-full bg-[#F5F5F7] px-2 py-0.5 font-mono text-[10.5px] text-[#6E6E73] sm:block">
-                {r.auth === "key" ? "bearer" : "cookie"}
+
+              <code className="min-w-0 flex-1 truncate font-mono text-[12px]">
+                {route.path}
+              </code>
+
+              <span className="hidden font-mono text-[10px] text-[#AEAEB2] sm:block">
+                {route.auth === "key" ? "BEARER" : "COOKIE"}
               </span>
-              <ChevronDown className={`size-4 shrink-0 text-[#6E6E73] transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+
+              <ChevronDown
+                className={[
+                  "size-4 shrink-0 text-[#86868B] transition-transform",
+                  isOpen ? "rotate-180" : "",
+                ].join(" ")}
+              />
             </button>
+
             <AnimatePresence initial={false}>
               {isOpen && (
                 <motion.div
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: "auto", opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.22, ease: "easeOut" }}
+                  transition={{ duration: 0.22 }}
                   className="overflow-hidden"
                 >
-                  <div className="grid gap-3 border-t border-[#E8E8ED] bg-white p-4 lg:grid-cols-2">
-                    <div className="min-w-0">
-                      <p className="mb-2 font-mono text-[11px] uppercase tracking-wider text-[#6E6E73]">Request — {r.desc}</p>
-                      <Code title="curl" code={r.req} />
+                  <div className="grid gap-0 border-t border-[#E5E5EA] lg:grid-cols-2">
+                    <div className="min-w-0 border-b border-[#E5E5EA] p-4 lg:border-b-0 lg:border-r">
+                      <div className="mb-2 flex items-center gap-2">
+                        <Terminal className="size-3.5 text-[#86868B]" />
+                        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#86868B]">
+                          request
+                        </span>
+                      </div>
+
+                      <Code title={route.desc} code={route.req} />
                     </div>
-                    <div className="min-w-0">
-                      <p className="mb-2 font-mono text-[11px] uppercase tracking-wider text-[#6E6E73]">Response</p>
-                      <Code title="json" code={r.res} light />
+
+                    <div className="min-w-0 p-4">
+                      <div className="mb-2 flex items-center gap-2">
+                        <span className="size-1.5 rounded-full bg-[#18864B]" />
+                        <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#86868B]">
+                          response
+                        </span>
+                      </div>
+
+                      <Code title="application/json" code={route.res} light />
                     </div>
                   </div>
                 </motion.div>
@@ -205,406 +557,758 @@ function Explorer({ routes }: { routes: Route[] }) {
           </div>
         );
       })}
-      {routes.length === 0 && (
-        <p className="px-4 py-8 text-center text-sm text-[#6E6E73]">No endpoints match.</p>
+
+      {!routes.length && (
+        <div className="px-5 py-12 text-center">
+          <Search className="mx-auto size-5 text-[#AEAEB2]" />
+          <p className="mt-3 text-sm text-[#86868B]">
+            No endpoints match that filter.
+          </p>
+        </div>
       )}
     </div>
   );
 }
 
 export default function DocsPage() {
-  const [active, setActive] = useState<string>("start");
+  const [active, setActive] = useState("start");
   const [filter, setFilter] = useState("");
-  const [tab, setTab] = useState<"curl" | "sdk">("sdk");
+  const [tab, setTab] = useState<"sdk" | "curl">("sdk");
 
   useEffect(() => {
-    const obs = new IntersectionObserver(
+    const observer = new IntersectionObserver(
       (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) setActive(e.target.id);
-        }
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+
+        if (visible) setActive(visible.target.id);
       },
-      { rootMargin: "-20% 0px -70% 0px" },
+      {
+        rootMargin: "-15% 0px -70% 0px",
+        threshold: [0, 0.2, 0.5],
+      },
     );
-    SECTIONS.forEach((s) => {
-      const el = document.getElementById(s.id);
-      if (el) obs.observe(el);
+
+    SECTIONS.forEach((section) => {
+      const element = document.getElementById(section.id);
+      if (element) observer.observe(element);
     });
-    return () => obs.disconnect();
+
+    return () => observer.disconnect();
   }, []);
 
-  const routes = useMemo(
-    () =>
-      ROUTES.filter(
-        (r) =>
-          r.path.toLowerCase().includes(filter.toLowerCase()) ||
-          r.desc.toLowerCase().includes(filter.toLowerCase()) ||
-          r.method.toLowerCase().includes(filter.toLowerCase()),
-      ),
-    [filter],
-  );
+  const routes = useMemo(() => {
+    const query = filter.trim().toLowerCase();
+
+    if (!query) return ROUTES;
+
+    return ROUTES.filter(
+      (route) =>
+        route.path.toLowerCase().includes(query) ||
+        route.desc.toLowerCase().includes(query) ||
+        route.method.toLowerCase().includes(query),
+    );
+  }, [filter]);
 
   return (
-    <main className="min-h-screen overflow-x-clip bg-white font-sans text-[#1D1D1F] antialiased">
-      <header className="fixed inset-x-0 top-0 z-50 border-b border-[#E8E8ED]/80 bg-white/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
-          <Link href="/" className="flex items-center gap-2 text-[15px] font-semibold tracking-tight">
-            <LogoMark size={22} /> RAGX
-            <span className="font-mono text-xs font-normal text-[#6E6E73]">/ docs</span>
+    <main className="min-h-screen bg-white text-[#1D1D1F] antialiased">
+      {/* ─────────────────────────────────────────
+          HEADER
+      ────────────────────────────────────────── */}
+      <header className="fixed inset-x-0 top-0 z-50 border-b border-[#E5E5EA]/80 bg-white/80 backdrop-blur-xl">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-5 sm:px-8">
+          <Link
+            href="/"
+            className="group flex items-center gap-2 text-[14px] font-semibold tracking-[-0.02em]"
+          >
+            <LogoMark size={21} />
+
+            <span>RAGX</span>
+
+            <span className="font-mono text-[11px] font-normal text-[#AEAEB2]">
+              / docs
+            </span>
           </Link>
+
           <div className="flex items-center gap-2">
-            <div className="hidden items-center gap-2 rounded-lg border border-[#E8E8ED] px-3 py-1.5 text-[13px] text-[#6E6E73] sm:flex">
-              <Search className="size-3.5" />
+            <div className="hidden h-8 items-center gap-2 border border-[#E5E5EA] px-3 sm:flex">
+              <Search className="size-3.5 text-[#86868B]" />
+
               <input
                 value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                placeholder="Filter endpoints…"
-                className="w-36 bg-transparent outline-none placeholder:text-[#6E6E73]/50"
+                onChange={(event) => setFilter(event.target.value)}
+                placeholder="Filter API…"
+                className="w-36 bg-transparent font-mono text-[11px] outline-none placeholder:text-[#AEAEB2]"
               />
             </div>
-            <Link href="/dashboard" className="rounded-full bg-[#1D1D1F] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-black">
+
+            <Link
+              href="/dashboard"
+              className="flex h-8 items-center rounded-md bg-[#1D1D1F] px-3.5 text-[12px] font-medium text-white transition-transform hover:-translate-y-px"
+            >
               Dashboard
             </Link>
           </div>
         </div>
       </header>
 
-      {/* hero */}
-      <section className="relative overflow-hidden pt-32 pb-10">
-        <div className="blueprint absolute inset-0" aria-hidden />
-        <div className="relative mx-auto max-w-6xl px-6">
-          <motion.p
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="font-mono text-xs uppercase tracking-[0.2em] text-[#6E6E73]"
-          >
-            Documentation
-          </motion.p>
-          <motion.h1
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.06 }}
-            className="mt-3 max-w-2xl text-4xl font-semibold tracking-[-0.025em] sm:text-6xl sm:leading-[1.04]"
-          >
-            Retrieval, <em className="font-serif font-medium italic">documented.</em>
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.12 }}
-            className="mt-4 max-w-xl text-[17px] leading-relaxed text-[#6E6E73]"
-          >
-            Every route below is implemented and callable right now. Expand any endpoint for a
-            copy-paste request and its exact response shape.
-          </motion.p>
+      {/* ─────────────────────────────────────────
+          HERO
+      ────────────────────────────────────────── */}
+      <section className="border-b border-[#E5E5EA] pt-28">
+        <div className="mx-auto grid max-w-7xl gap-0 px-5 sm:px-8 lg:grid-cols-[1fr_420px]">
+          <div className="flex min-h-[430px] flex-col justify-center py-16 lg:pr-16">
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-[#86868B]"
+            >
+              <span className="size-1.5 rounded-full bg-[#0071E3]" />
+              RAGX documentation
+            </motion.div>
+
+            <motion.h1
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.06 }}
+              className="mt-5 max-w-3xl text-5xl font-semibold tracking-[-0.055em] sm:text-7xl sm:leading-[0.98]"
+            >
+              Retrieval,
+              <br />
+              <span className="text-[#86868B]">without the glue.</span>
+            </motion.h1>
+
+            <motion.p
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.12 }}
+              className="mt-6 max-w-xl text-[16px] leading-7 text-[#6E6E73]"
+            >
+              Parsing, chunking, embeddings and retrieval infrastructure
+              designed to disappear behind one clean API.
+            </motion.p>
+
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.18 }}
+              className="mt-7 flex flex-wrap items-center gap-2"
+            >
+              <a
+                href="#start"
+                className="inline-flex h-9 items-center gap-2 rounded-md bg-[#1D1D1F] px-4 text-[12px] font-medium text-white transition-transform hover:-translate-y-px"
+              >
+                Get started
+                <ArrowUpRight className="size-3.5" />
+              </a>
+
+              <a
+                href="#api"
+                className="inline-flex h-9 items-center gap-2 rounded-md border border-[#E5E5EA] px-4 font-mono text-[11px] text-[#6E6E73] transition-colors hover:bg-[#F5F5F7]"
+              >
+                API reference
+              </a>
+            </motion.div>
+          </div>
+
           <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.18 }}
-            className="mt-6 flex items-center gap-2 overflow-x-auto rounded-xl border border-[#E8E8ED] bg-white px-4 py-3 font-mono text-[13px] sm:hidden"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.2, duration: 0.6 }}
+            className="flex items-center border-t border-[#E5E5EA] py-10 lg:border-l lg:border-t-0 lg:px-10"
           >
-            <Search className="size-4 shrink-0 text-[#6E6E73]" />
-            <input
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              placeholder="Filter endpoints…"
-              className="w-full bg-transparent outline-none placeholder:text-[#6E6E73]/50"
-            />
+            <RetrievalVisual />
           </motion.div>
         </div>
       </section>
 
-      <div className="mx-auto grid max-w-6xl gap-10 px-6 pb-24 lg:grid-cols-[200px_1fr]">
-        {/* sidebar */}
-        <nav className="flex gap-1 overflow-x-auto lg:sticky lg:top-24 lg:flex-col lg:self-start">
-          {SECTIONS.map((s) => (
-            <a
-              key={s.id}
-              href={`#${s.id}`}
-              onClick={() => setActive(s.id)}
-              className={`relative whitespace-nowrap rounded-md px-3 py-2 text-[13.5px] transition-colors ${
-                active === s.id ? "bg-[#F5F5F7] font-medium text-[#1D1D1F]" : "text-[#6E6E73] hover:text-[#1D1D1F]"
-              }`}
-            >
-              {active === s.id && (
-                <motion.span
-                  layoutId="docs-active"
-                  className="absolute left-0 top-1/2 hidden h-4 w-[2.5px] -translate-y-1/2 rounded-full bg-[#0071E3] lg:block"
-                />
-              )}
-              {s.label}
-            </a>
-          ))}
+      {/* ─────────────────────────────────────────
+          BODY
+      ────────────────────────────────────────── */}
+      <div className="mx-auto grid max-w-7xl gap-12 px-5 py-16 sm:px-8 lg:grid-cols-[180px_minmax(0,1fr)]">
+        {/* SIDEBAR */}
+        <nav className="lg:sticky lg:top-24 lg:self-start">
+          <div className="mb-3 font-mono text-[9px] uppercase tracking-[0.2em] text-[#AEAEB2]">
+            Contents
+          </div>
+
+          <div className="flex gap-1 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible lg:pb-0">
+            {SECTIONS.map((section) => (
+              <a
+                key={section.id}
+                href={`#${section.id}`}
+                onClick={() => setActive(section.id)}
+                className={[
+                  "relative whitespace-nowrap px-2.5 py-1.5 text-[12.5px] transition-colors",
+                  active === section.id
+                    ? "font-medium text-[#1D1D1F]"
+                    : "text-[#86868B] hover:text-[#1D1D1F]",
+                ].join(" ")}
+              >
+                {active === section.id && (
+                  <motion.span
+                    layoutId="docs-indicator"
+                    className="absolute -left-1 top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-[#0071E3]"
+                  />
+                )}
+
+                {section.label}
+              </a>
+            ))}
+          </div>
         </nav>
 
-        <motion.article initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="min-w-0 space-y-16">
-          {/* quickstart — two column */}
+        <article className="min-w-0 space-y-28">
+          {/* QUICKSTART */}
           <section id="start" className="scroll-mt-24">
-            <h2 className="text-[26px] font-semibold tracking-[-0.02em]">Quickstart</h2>
-            <div className="mt-6 grid items-start gap-6 lg:grid-cols-2">
-              <motion.ol
-                initial="hidden"
-                whileInView="show"
-                viewport={{ once: true }}
-                className="min-w-0 space-y-0"
-              >
-                {[
-                  ["Register", "Create your account. Sessions use httpOnly cookies."],
-                  ["Create a project", "A Default API key is minted instantly — copy it once."],
-                  ["Install the SDK", "bun add @ragx/sdk. One import, typed client."],
-                  ["Search", "Query with knowledgeBase + topK. Get scored chunks with pages."],
-                ].map(([t, d], i) => (
-                  <motion.li
-                    key={t}
-                    variants={{ hidden: { opacity: 0, x: -10 }, show: { opacity: 1, x: 0, transition: { delay: i * 0.09 } } }}
-                    className="relative flex gap-4 pb-7 last:pb-0"
-                  >
-                    <span className="flex flex-col items-center">
-                      <span className="grid size-7 shrink-0 place-items-center rounded-full border border-[#E8E8ED] bg-white font-mono text-[11px] font-semibold">
-                        {i + 1}
-                      </span>
-                      {i < 3 && <span className="my-1 w-px flex-1 bg-[#E8E8ED]" aria-hidden />}
-                    </span>
-                    <span className="pt-0.5">
-                      <span className="block text-[15px] font-semibold">{t}</span>
-                      <span className="mt-0.5 block text-[14px] leading-relaxed text-[#6E6E73]">{d}</span>
-                    </span>
-                  </motion.li>
-                ))}
-              </motion.ol>
-              <div className="min-w-0 lg:sticky lg:top-24">
-                <div className="mb-2 flex gap-1 rounded-lg bg-[#F5F5F7] p-1">
-                  {(["sdk", "curl"] as const).map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => setTab(t)}
-                      className={`flex-1 rounded-md px-3 py-1.5 font-mono text-xs transition-all ${
-                        tab === t ? "bg-white font-semibold shadow-[0_1px_4px_rgba(0,0,0,0.08)]" : "text-[#6E6E73]"
-                      }`}
+            <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr]">
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#0071E3]">
+                  01 / Quickstart
+                </div>
+
+                <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
+                  From zero to retrieval.
+                </h2>
+
+                <p className="mt-3 text-[14px] leading-7 text-[#6E6E73]">
+                  Four steps. Your application owns the experience. RAGX owns
+                  the retrieval machinery.
+                </p>
+
+                <div className="mt-8 border-l border-[#E5E5EA]">
+                  {[
+                    [
+                      "Register",
+                      "Create your account and session.",
+                    ],
+                    [
+                      "Create a project",
+                      "Get an isolated project and API key.",
+                    ],
+                    [
+                      "Install the SDK",
+                      "Use the typed client from your app.",
+                    ],
+                    [
+                      "Retrieve",
+                      "Search your knowledge base and receive scored context.",
+                    ],
+                  ].map(([title, description], index) => (
+                    <motion.div
+                      key={title}
+                      initial={{ opacity: 0, x: -8 }}
+                      whileInView={{ opacity: 1, x: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ delay: index * 0.07 }}
+                      className="relative py-2 pl-6"
                     >
-                      {t === "sdk" ? "TypeScript" : "cURL"}
+                      <span className="absolute -left-[4px] top-[13px] size-2 rounded-full border-2 border-white bg-[#0071E3]" />
+
+                      <p className="text-[14px] font-semibold">
+                        {index + 1}. {title}
+                      </p>
+
+                      <p className="mt-0.5 text-[13px] text-[#86868B]">
+                        {description}
+                      </p>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 flex border-b border-[#E5E5EA]">
+                  {(["sdk", "curl"] as const).map((value) => (
+                    <button
+                      key={value}
+                      onClick={() => setTab(value)}
+                      className={[
+                        "border-b-2 px-3 py-2 font-mono text-[11px] transition-colors",
+                        tab === value
+                          ? "border-[#0071E3] text-[#1D1D1F]"
+                          : "border-transparent text-[#86868B]",
+                      ].join(" ")}
+                    >
+                      {value === "sdk" ? "TypeScript" : "cURL"}
                     </button>
                   ))}
                 </div>
+
                 {tab === "sdk" ? (
-                  <Code wrap title="app.ts" code={`import RAGX from "@ragx/sdk";\n\nconst ragx = new RAGX({\n  apiKey: process.env.RAGX_API_KEY,\n});\n\nconst results = await ragx.search(\n  "How does authentication work?",\n  { knowledgeBase: "kb_123", topK: 5 }\n);\n// [{ text, score: 0.94,\n//    documentId, page: 12 }] `} />
+                  <Code
+                    title="app.ts"
+                    code={`import RAGX from "@ragx/sdk";
+
+const ragx = new RAGX({
+  apiKey: process.env.RAGX_API_KEY,
+});
+
+const results = await ragx.search(
+  "How does authentication work?",
+  {
+    knowledgeBase: "kb_123",
+    topK: 5,
+  }
+);
+
+// [
+//   {
+//     text,
+//     score: 0.94,
+//     documentId,
+//     page: 12
+//   }
+// ]`}
+                  />
                 ) : (
-                  <Code wrap title="bash" code={`curl -X POST http://localhost:3000/api/v1/projects \\\n  -b cookies.txt \\\n  -H "Content-Type: application/json" \\\n  -d '{"name":"Docs Assistant"}'\n\n# → { project, apiKey:\n#     { key: "ragx_live_•••" } }`} />
+                  <Code
+                    title="terminal"
+                    code={`curl -X POST ${BASE}/projects \\
+  -b cookies.txt \\
+  -H "Content-Type: application/json" \\
+  -d '{"name":"Docs Assistant"}'
+
+# → { project, apiKey: { key: "ragx_live_•••" } }`}
+                  />
                 )}
               </div>
             </div>
           </section>
 
-          {/* what it does — expandable pipeline */}
+          {/* PIPELINE */}
           <section id="process" className="scroll-mt-24">
-            <h2 className="text-[26px] font-semibold tracking-[-0.02em]">What RAGX actually does</h2>
-            <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-[#6E6E73]">
-              One upload travels six stages. Expand each stage to see the mechanics inside —
-              this is the work you stop writing yourself.
-            </p>
-            <PipelineDeepDive />
-          </section>
-
-          {/* how parsing works */}
-          <section id="parsing" className="scroll-mt-24">
-            <h2 className="text-[26px] font-semibold tracking-[-0.02em]">How parsing works</h2>
-            <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-[#6E6E73]">
-              Every format gets a dedicated loader. Nothing is flattened to plain text —
-              structure survives all the way to the chunk.
-            </p>
-            <div className="mt-6 grid gap-px overflow-hidden rounded-xl border border-[#E8E8ED] bg-[#E8E8ED] sm:grid-cols-2">
-              {[
-                ["PDF", "Text layer extracted per page. Tables detected from line geometry → markdown + cell matrices. Embedded images captured with dimensions. Scanned pages fall back to OCR."],
-                ["Markdown", "Headings, lists and fenced code blocks preserved natively — the cleanest input you can give RAGX."],
-                ["DOCX", "Paragraphs, headings and tables recovered from the document XML, not pasted text."],
-                ["HTML", "Scripts, styles and chrome stripped. Article content kept with heading hierarchy."],
-                ["CSV", "Header row becomes field names; every record becomes a key–value block so retrieval sees labeled data."],
-                ["TXT", "Paragraph-split plain text. No structure to lose, none invented."],
-              ].map(([t, d], i) => (
-                <motion.div
-                  key={t}
-                  initial={{ opacity: 0, y: 10 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: (i % 2) * 0.07 }}
-                  className="bg-white p-5"
-                >
-                  <span className="rounded bg-[#F5F5F7] px-2 py-0.5 font-mono text-[11px] font-semibold text-[#0071E3]">{t}</span>
-                  <p className="mt-2.5 text-[13.5px] leading-relaxed text-[#6E6E73]">{d}</p>
-                </motion.div>
-              ))}
-            </div>
-            <div className="mt-4 rounded-xl border border-[#E8E8ED] p-5">
-              <p className="font-mono text-[11px] uppercase tracking-wider text-[#6E6E73]">Every parse emits the same shape</p>
-              <div className="mt-3 flex flex-wrap items-center gap-2 font-mono text-[12.5px]">
-                {["headings", "paragraphs", "tables", "images", "code"].map((s, i, a) => (
-                  <span key={s} className="flex items-center gap-2">
-                    <motion.span
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      whileInView={{ opacity: 1, scale: 1 }}
-                      viewport={{ once: true }}
-                      transition={{ delay: i * 0.1 }}
-                      className="rounded-lg border border-[#0071E3]/25 bg-[#0071E3]/[0.06] px-3 py-1.5 text-[#0071E3]"
-                    >
-                      {s}
-                    </motion.span>
-                    {i < a.length - 1 && <span className="text-[#E8E8ED]">+</span>}
-                  </span>
-                ))}
-                <span className="text-[#E8E8ED]">→</span>
-                <span className="rounded-lg bg-[#1D1D1F] px-3 py-1.5 text-white">chunks</span>
+            <div className="max-w-2xl">
+              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#0071E3]">
+                02 / Pipeline
               </div>
+
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
+                The work behind one query.
+              </h2>
+
+              <p className="mt-3 text-[14px] leading-7 text-[#6E6E73]">
+                RAGX turns messy documents into retrievable context through a
+                deterministic pipeline.
+              </p>
+            </div>
+
+            <div className="mt-8">
+              <PipelineExplorer />
             </div>
           </section>
 
-          {/* traditional vs ragx */}
-          <section id="versus" className="scroll-mt-24">
-            <h2 className="text-[26px] font-semibold tracking-[-0.02em]">Traditional RAG vs RAGX</h2>
-            <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-[#6E6E73]">
-              The DIY stack works until it meets real documents. Each row is a failure mode
-              teams hit — and what RAGX does instead.
-            </p>
-            <div className="mt-6 overflow-hidden rounded-xl border border-[#E8E8ED]">
-              {[
-                ["Tables split mid-row", "Naive character splitters cut tables in half; answers quote half a row.", "One table = one chunk. Markdown + cell matrix stored together."],
-                ["Headers lost", "Chunks arrive with no section context; retrieval can't tell setup from troubleshooting.", "Every chunk carries its header path as context."],
-                ["Scanned PDFs return nothing", "Text-only extractors silently index zero content from scans.", "No text layer → OCR fallback, flagged per page."],
-                ["Model swap = re-embed hell", "Vectors are tied to one model with no version record.", "Embeddings versioned per model; switching starts a background re-embed."],
-                ["Key sprawl", "One shared secret in an env file, no revocation story.", "Per-project keys, SHA-256 hashed, shown once, revocable anytime."],
-                ["No citations", "LLM answers with no page, no score, no source to check.", "Every chunk returns score + document + page + section."],
-              ].map(([pain, diy, fix], i) => (
-                <motion.div
-                  key={pain}
-                  initial={{ opacity: 0, y: 10 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: Math.min(i * 0.05, 0.25) }}
-                  className={`grid gap-2 px-5 py-4 transition-colors hover:bg-[#F5F5F7]/50 sm:grid-cols-[1fr_1.4fr] sm:gap-6 ${i > 0 ? "border-t border-[#E8E8ED]" : ""}`}
-                >
-                  <div>
-                    <p className="text-[14px] font-semibold">{pain}</p>
-                    <p className="mt-1 text-[13px] leading-relaxed text-[#6E6E73]">{diy}</p>
-                  </div>
-                  <div className="flex gap-2.5 sm:pl-4 sm:border-l-2 sm:border-[#0071E3]/30">
-                    <span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-[#0071E3]" aria-hidden />
-                    <p className="text-[13.5px] leading-relaxed">{fix}</p>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
-          </section>
+          {/* PARSING */}
+          <section id="parsing" className="scroll-mt-24">
+            <div className="max-w-2xl">
+              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#0071E3]">
+                03 / Parsing
+              </div>
 
-          {/* process safety */}
-          <section id="safety" className="scroll-mt-24">
-            <h2 className="text-[26px] font-semibold tracking-[-0.02em]">Process safety</h2>
-            <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-[#6E6E73]">
-              Retrieval infrastructure holds your documents and your keys. Here is exactly
-              how each secret is treated — no trust-me language, just mechanics.
-            </p>
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              {[
-                ["API keys are hashed", "SHA-256 at rest. The raw secret exists once — on the creation screen — then only previews."],
-                ["Passwords are armored", "Argon2id hashing. No reversible encryption, nothing to leak."],
-                ["Sessions are httpOnly", "JWT lives in a cookie JavaScript cannot read. XSS can't steal it."],
-                ["Ownership is checked", "Every project and key read verifies your user id. No IDOR by guessing UUIDs."],
-                ["Revocation is soft-delete", "Revoked keys stay in the database with revokedAt — auditable, never reusable."],
-                ["BYOK keys are write-only", "Provider keys are encrypted, never returned by any API, revealed only with confirmation."],
-              ].map(([t, d], i) => (
-                <motion.div
-                  key={t}
-                  initial={{ opacity: 0, y: 10 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: (i % 2) * 0.07 }}
-                  className="rounded-xl border border-[#E8E8ED] p-5 transition-colors hover:border-[#0071E3]/40"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span className="grid size-6 shrink-0 place-items-center rounded-full bg-[#0071E3]/10">
-                      <Check className="size-3.5 text-[#0071E3]" strokeWidth={3} />
-                    </span>
-                    <p className="text-[14.5px] font-semibold">{t}</p>
-                  </div>
-                  <p className="mt-2 text-[13.5px] leading-relaxed text-[#6E6E73]">{d}</p>
-                </motion.div>
-              ))}
-            </div>
-            <div className="mt-4">
-              <Code light title="what a key looks like after creation" code={`"key":      "rgx_live_••••••••••••••"   ← preview only\n"keyHash":  "sha256:9f2a…41bd"          ← what we store\n"raw key":  "gone — shown once, never again"`} />
-            </div>
-          </section>
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
+                Structure survives the parser.
+              </h2>
 
-          {/* concepts — two column definition rows with hover */}
-          <section id="concepts" className="scroll-mt-24">
-            <h2 className="text-[26px] font-semibold tracking-[-0.02em]">Core concepts</h2>
-            <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-[#6E6E73]">
-              Six nouns. Everything in RAGX — dashboard, API and SDK — is built from them.
-            </p>
-            <div className="mt-6 grid gap-px overflow-hidden rounded-xl border border-[#E8E8ED] bg-[#E8E8ED] sm:grid-cols-2">
+              <p className="mt-3 text-[14px] leading-7 text-[#6E6E73]">
+                A PDF isn't just text. Neither is a DOCX, spreadsheet or web
+                page. RAGX preserves useful structure before retrieval ever
+                starts.
+              </p>
+            </div>
+
+            <div className="mt-8 grid border border-[#E5E5EA] sm:grid-cols-2">
               {[
-                ["Projects", "prj_…", "Isolated workspaces. Docs, chunks and keys live inside."],
-                ["Documents", "PDF · MD · DOCX", "Parsed into headings, tables, images and code."],
-                ["Collections", "kb_…", "Knowledge bases that scope every retrieval query."],
-                ["Chunks", "ch_…", "Retrieval units. Tables never split; headers ride along."],
-                ["Embeddings", "384-dim", "Hosted vectors, hash-cached, versioned per model."],
-                ["API keys", "ragx_live_…", "SHA-256 hashed. Shown exactly once, then previews."],
-              ].map(([t, tag, d], i) => (
+                [
+                  "PDF",
+                  "Per-page text extraction, tables, embedded images and OCR fallback for scanned pages.",
+                ],
+                [
+                  "Markdown",
+                  "Headings, lists and fenced code blocks remain native structure.",
+                ],
+                [
+                  "DOCX",
+                  "Paragraphs, headings and tables recovered from document XML.",
+                ],
+                [
+                  "HTML",
+                  "Scripts and styles removed while article hierarchy remains intact.",
+                ],
+                [
+                  "CSV",
+                  "Headers become field names so each record remains semantically labeled.",
+                ],
+                [
+                  "TXT",
+                  "Paragraph-aware plain text with no structure invented.",
+                ],
+              ].map(([name, description], index) => (
                 <motion.div
-                  key={t}
-                  initial={{ opacity: 0, y: 10 }}
+                  key={name}
+                  initial={{ opacity: 0, y: 8 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true }}
-                  transition={{ delay: (i % 2) * 0.07 }}
-                  className="group bg-white p-5 transition-colors hover:bg-[#F5F5F7]/60"
+                  transition={{ delay: (index % 2) * 0.06 }}
+                  className={[
+                    "p-5",
+                    index % 2 === 1 ? "sm:border-l sm:border-[#E5E5EA]" : "",
+                    index >= 2 ? "border-t border-[#E5E5EA]" : "",
+                  ].join(" ")}
                 >
                   <div className="flex items-center justify-between">
-                    <p className="text-[15px] font-semibold">{t}</p>
-                    <span className="rounded bg-[#F5F5F7] px-1.5 py-0.5 font-mono text-[10.5px] text-[#0071E3] transition-colors group-hover:bg-[#0071E3]/10">
-                      {tag}
+                    <span className="font-mono text-[11px] font-semibold text-[#0071E3]">
+                      {name}
+                    </span>
+
+                    <span className="font-mono text-[9px] uppercase tracking-widest text-[#AEAEB2]">
+                      loader
                     </span>
                   </div>
-                  <p className="mt-1.5 text-[13.5px] leading-relaxed text-[#6E6E73]">{d}</p>
+
+                  <p className="mt-3 text-[13px] leading-6 text-[#6E6E73]">
+                    {description}
+                  </p>
                 </motion.div>
+              ))}
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-2 border border-[#E5E5EA] px-5 py-4">
+              {["headings", "paragraphs", "tables", "images", "code"].map(
+                (item, index) => (
+                  <div key={item} className="flex items-center gap-2">
+                    <span className="border border-[#0071E3]/20 bg-[#0071E3]/[0.04] px-2.5 py-1 font-mono text-[10px] text-[#0071E3]">
+                      {item}
+                    </span>
+
+                    {index < 4 && (
+                      <span className="text-[#D2D2D7]">+</span>
+                    )}
+                  </div>
+                ),
+              )}
+
+              <span className="text-[#AEAEB2]">→</span>
+
+              <span className="bg-[#1D1D1F] px-2.5 py-1 font-mono text-[10px] text-white">
+                normalized chunk
+              </span>
+            </div>
+          </section>
+
+          {/* VERSUS */}
+          <section id="versus" className="scroll-mt-24">
+            <div className="max-w-2xl">
+              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#0071E3]">
+                04 / RAGX vs DIY
+              </div>
+
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
+                The details are the product.
+              </h2>
+
+              <p className="mt-3 text-[14px] leading-7 text-[#6E6E73]">
+                Building RAG isn't hard because embeddings are mysterious. It's
+                hard because real documents keep finding edge cases.
+              </p>
+            </div>
+
+            <div className="mt-8 border border-[#E5E5EA]">
+              {[
+                [
+                  "Tables split mid-row",
+                  "Naive splitters can destroy row relationships.",
+                  "Tables remain atomic chunks with their structure preserved.",
+                ],
+                [
+                  "Headers disappear",
+                  "A chunk loses the section that gives it meaning.",
+                  "Header paths travel with every chunk.",
+                ],
+                [
+                  "Scanned PDFs",
+                  "Text-only extraction returns empty content.",
+                  "OCR fallback handles pages without a usable text layer.",
+                ],
+                [
+                  "Model migration",
+                  "Changing embedding models can become an indexing project.",
+                  "Model metadata and vector dimensions are versioned.",
+                ],
+                [
+                  "API key sprawl",
+                  "One shared secret becomes difficult to rotate.",
+                  "Project-scoped keys can be created and revoked independently.",
+                ],
+                [
+                  "Missing provenance",
+                  "Generated answers can lose their original source.",
+                  "Retrieved chunks carry document, page, section and score.",
+                ],
+              ].map(([problem, oldWay, ragx], index) => (
+                <div
+                  key={problem}
+                  className={[
+                    "grid gap-5 px-5 py-5 lg:grid-cols-[1fr_1fr_1fr]",
+                    index > 0 ? "border-t border-[#E5E5EA]" : "",
+                  ].join(" ")}
+                >
+                  <p className="text-[13.5px] font-semibold">{problem}</p>
+
+                  <p className="text-[13px] leading-6 text-[#86868B]">
+                    {oldWay}
+                  </p>
+
+                  <div className="flex gap-2">
+                    <span className="mt-2 size-1.5 shrink-0 rounded-full bg-[#0071E3]" />
+
+                    <p className="text-[13px] leading-6">{ragx}</p>
+                  </div>
+                </div>
               ))}
             </div>
           </section>
 
-          {/* api explorer */}
+          {/* SECURITY */}
+          <section id="safety" className="scroll-mt-24">
+            <div className="max-w-2xl">
+              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#0071E3]">
+                05 / Security
+              </div>
+
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
+                Secrets should have a lifecycle.
+              </h2>
+
+              <p className="mt-3 text-[14px] leading-7 text-[#6E6E73]">
+                RAGX treats authentication and provider credentials as
+                infrastructure primitives, not UI fields.
+              </p>
+            </div>
+
+            <div className="mt-8 grid border border-[#E5E5EA] sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                [
+                  "API keys",
+                  "SHA-256 hashed at rest. The raw secret is shown only at creation.",
+                ],
+                [
+                  "Passwords",
+                  "Argon2id hashing. No reversible password storage.",
+                ],
+                [
+                  "Sessions",
+                  "httpOnly cookies keep session credentials outside browser JavaScript.",
+                ],
+                [
+                  "Ownership",
+                  "Project and key operations verify the authenticated user.",
+                ],
+                [
+                  "Revocation",
+                  "Revoked keys retain lifecycle metadata and cannot be reused.",
+                ],
+                [
+                  "BYOK",
+                  "Provider credentials are treated as write-only secrets.",
+                ],
+              ].map(([title, description], index) => (
+                <div
+                  key={title}
+                  className={[
+                    "p-5",
+                    index > 0 ? "border-t border-[#E5E5EA]" : "",
+                    index % 3 !== 0 ? "lg:border-l" : "",
+                    index % 2 !== 0 ? "sm:border-l" : "",
+                  ].join(" ")}
+                >
+                  <div className="flex items-center gap-2">
+                    <Check className="size-3.5 text-[#0071E3]" strokeWidth={3} />
+                    <p className="text-[13.5px] font-semibold">{title}</p>
+                  </div>
+
+                  <p className="mt-2.5 text-[12.5px] leading-6 text-[#86868B]">
+                    {description}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4">
+              <Code
+                light
+                title="stored representation"
+                code={`"key":      "rgx_live_••••••••"   // preview
+"keyHash":  "sha256:9f2a…41bd"  // stored
+"rawKey":   null                 // never persisted`}
+              />
+            </div>
+          </section>
+
+          {/* CONCEPTS */}
+          <section id="concepts" className="scroll-mt-24">
+            <div className="max-w-2xl">
+              <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#0071E3]">
+                06 / Concepts
+              </div>
+
+              <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
+                Six primitives.
+              </h2>
+
+              <p className="mt-3 text-[14px] leading-7 text-[#6E6E73]">
+                Everything in the dashboard, API and SDK reduces to these
+                primitives.
+              </p>
+            </div>
+
+            <div className="mt-8 border border-[#E5E5EA]">
+              {[
+                ["Projects", "prj_…", "Isolated environments for documents, chunks and keys."],
+                ["Documents", "doc_…", "Source files parsed into structured content."],
+                ["Collections", "kb_…", "Knowledge bases that scope retrieval."],
+                ["Chunks", "ch_…", "Atomic retrieval units carrying their context."],
+                ["Embeddings", "384-dim", "Versioned vectors generated from chunk content."],
+                ["API keys", "rgx_live_…", "Project credentials with explicit lifecycle control."],
+              ].map(([title, tag, description], index) => (
+                <div
+                  key={title}
+                  className={[
+                    "group grid gap-3 px-5 py-4 transition-colors hover:bg-[#FAFAFA] sm:grid-cols-[160px_100px_1fr]",
+                    index > 0 ? "border-t border-[#E5E5EA]" : "",
+                  ].join(" ")}
+                >
+                  <p className="text-[13.5px] font-semibold">{title}</p>
+
+                  <span className="font-mono text-[10px] text-[#0071E3]">
+                    {tag}
+                  </span>
+
+                  <p className="text-[13px] leading-6 text-[#86868B]">
+                    {description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* API */}
           <section id="api" className="scroll-mt-24">
-            <div className="flex flex-wrap items-end justify-between gap-3">
+            <div className="flex flex-wrap items-end justify-between gap-5">
               <div>
-                <h2 className="text-[26px] font-semibold tracking-[-0.02em]">API reference</h2>
-                <p className="mt-2 break-all font-mono text-[13px] text-[#6E6E73]">
-                  <code className="rounded bg-[#F5F5F7] px-1.5 py-0.5">http://localhost:3000/api/v1</code>
-                  {"  "}· {routes.length} of {ROUTES.length} routes
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#0071E3]">
+                  07 / API
+                </div>
+
+                <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
+                  API reference.
+                </h2>
+
+                <p className="mt-3 font-mono text-[11px] text-[#86868B]">
+                  {BASE}
+                  <span className="mx-2 text-[#D2D2D7]">·</span>
+                  {routes.length}/{ROUTES.length} routes
                 </p>
               </div>
+
+              <div className="flex h-8 items-center gap-2 border border-[#E5E5EA] px-3 sm:hidden">
+                <Search className="size-3.5 text-[#86868B]" />
+
+                <input
+                  value={filter}
+                  onChange={(event) => setFilter(event.target.value)}
+                  placeholder="Filter…"
+                  className="w-32 bg-transparent font-mono text-[11px] outline-none"
+                />
+              </div>
             </div>
-            <div className="mt-5">
+
+            <div className="mt-8">
               <Explorer routes={routes} />
             </div>
           </section>
 
-          {/* sdk + byok two column */}
+          {/* SDK */}
           <section id="sdk" className="scroll-mt-24">
-            <h2 className="text-[26px] font-semibold tracking-[-0.02em]">SDK & BYOK</h2>
-            <div className="mt-6 grid items-start gap-6 lg:grid-cols-2">
-              <div className="min-w-0">
-                <p className="text-[15px] font-semibold">Retrieval + generation in one call</p>
-                <p className="mt-1.5 text-[14px] leading-relaxed text-[#6E6E73]">
-                  <code className="rounded bg-[#F5F5F7] px-1 font-mono text-[12.5px]">ask()</code> searches
-                  RAGX, then calls your provider directly with your key. RAGX never sees it.
+            <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr]">
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.18em] text-[#0071E3]">
+                  08 / SDK
+                </div>
+
+                <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em]">
+                  Bring your model.
+                </h2>
+
+                <p className="mt-4 text-[14px] leading-7 text-[#6E6E73]">
+                  RAGX handles retrieval. Your application decides what model
+                  generates the final answer.
                 </p>
-                <p className="mt-4 text-[15px] font-semibold">Your key, your model, your bill</p>
-                <p className="mt-1.5 text-[14px] leading-relaxed text-[#6E6E73]">
-                  Any OpenAI-compatible provider. Prefer the dashboard? Store keys under
-                  Settings → Environment Variables — encrypted, confirmed reveals only.
-                </p>
+
+                <div className="mt-7 space-y-5">
+                  <div>
+                    <p className="text-[13.5px] font-semibold">
+                      Retrieval + generation
+                    </p>
+
+                    <p className="mt-1.5 text-[13px] leading-6 text-[#86868B]">
+                      Use{" "}
+                      <code className="bg-[#F5F5F7] px-1 font-mono text-[11px]">
+                        ask()
+                      </code>{" "}
+                      when you want retrieval and provider generation in one
+                      operation.
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-[13.5px] font-semibold">
+                      BYOK
+                    </p>
+
+                    <p className="mt-1.5 text-[13px] leading-6 text-[#86868B]">
+                      Supply your provider credentials instead of coupling your
+                      application to another platform's model billing.
+                    </p>
+                  </div>
+                </div>
               </div>
-              <Code title="ask.ts" code={`const ragx = new RAGX({\n  apiKey: process.env.RAGX_API_KEY,\n  llm: {\n    provider: "groq",\n    model: "llama-3.3-70b-versatile",\n    apiKey: process.env.GROQ_API_KEY, // yours, never ours\n  },\n});\n\nconst answer = await ragx.ask("Explain MVCC", { topK: 5 });`} />
+
+              <Code
+                title="ask.ts"
+                code={`const ragx = new RAGX({
+  apiKey: process.env.RAGX_API_KEY,
+
+  llm: {
+    provider: "groq",
+    model: "llama-3.3-70b-versatile",
+    apiKey: process.env.GROQ_API_KEY,
+  },
+});
+
+const answer = await ragx.ask(
+  "Explain MVCC",
+  { topK: 5 }
+);`}
+              />
             </div>
           </section>
-        </motion.article>
+        </article>
       </div>
+
+      {/* FOOTER */}
+      <footer className="border-t border-[#E5E5EA]">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-8 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+          <div className="flex items-center gap-2">
+            <LogoMark size={18} />
+            <span className="text-[12px] font-semibold">RAGX</span>
+          </div>
+
+          <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[#AEAEB2]">
+            retrieval infrastructure
+          </p>
+        </div>
+      </footer>
     </main>
   );
 }

@@ -1,3 +1,9 @@
+// NOTE: legacy provider-config shapes (frozen, kept for compatibility).
+//
+// Canonical provider naming lives in `ragx.types.ts` (`RAGXProviderName` =
+// openai | mistral | gemini). `EmbeddingProvider` below predates gemini
+// support and stays as-is so existing imports don't break — new code
+// should use `RAGXProviderName`.
 export type EmbeddingProvider = "openai" | "mistral";
 
 export type VectorStoreProvider = "pinecone" | "qdrant" | "pgvector";

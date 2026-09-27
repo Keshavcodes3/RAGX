@@ -1,3 +1,9 @@
+// NOTE: legacy LLM-config shapes (frozen, kept for compatibility).
+//
+// RAGX is retrieval-only (no generation endpoint besides `ask`, which uses
+// the project's embedding provider runtime). These types predate that
+// decision and are unused by the SDK/API today — preserved so external
+// imports don't break.
 export type LlmProvider =
   | "openai"
   | "anthropic"

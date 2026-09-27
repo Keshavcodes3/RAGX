@@ -1,3 +1,12 @@
+// NOTE: public SDK surface — the only module consumers import.
+//
+// Users never see repositories, schemas, workers, storage drivers, or
+// chunking/embedding internals. Configuration is one provider + its key
+// plus the RAGX project key; everything else (chunking, models,
+// retrieval) is decided server-side.
+//
+//! Provider keys travel per-request in `X-Provider-Key` headers over TLS.
+// The SDK keeps them in memory only — never persisted, never logged.
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 

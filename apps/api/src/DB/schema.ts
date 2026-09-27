@@ -1,9 +1,11 @@
-import { uuid } from "drizzle-orm/pg-core";
-import { index } from "drizzle-orm/pg-core";
-import { jsonb } from "drizzle-orm/pg-core";
-import { text } from "drizzle-orm/pg-core";
-import { timestamp } from "drizzle-orm/pg-core";
-import { integer, pgTable, varchar } from "drizzle-orm/pg-core";
+// NOTE: single source of truth for PostgreSQL tables (drizzle).
+//
+// Repository classes own all queries against these tables — controllers,
+// services, SDK, and workers never import drizzle directly. `objectKey`
+// references object storage (binaries never live in Postgres); vectors
+// live in `document_chunk.embedding` (JSONB, ranked in-JS) until the
+// pgvector migration lands behind the VectorStore abstraction.
+import { index, integer, jsonb, pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
 
 
 

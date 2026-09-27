@@ -3,7 +3,10 @@ import { randomUUID } from "node:crypto";
 import { HttpError, NotFoundError } from "@/Utils/httpError";
 
 import { toStructuredDocument } from "../../Ingestion/Document/adapters";
-import { createEmbeddingProvider } from "../../Ingestion/Embeddings/embedding.registry";
+import {
+  createEmbeddingProvider,
+  embedTextsBatched,
+} from "../../Ingestion/Embeddings/embedding.registry";
 import { DocumentEmptyError } from "../../Ingestion/Errors/document.errors";
 import { structuredChunk } from "../../Ingestion/Chunking/structured.chunking";
 import {
@@ -307,20 +310,13 @@ export class DocumentService {
   ): Promise<number[][]> {
     // One embedding configuration for the whole upload, built through
     // the registry — ingestion never configures providers itself.
+    // NOTE: windowing policy lives in `embedTextsBatched` (shared with
+    // future callers) so batch-size changes apply everywhere at once.
     const embedding = createEmbeddingProvider(
       resolved.provider,
       resolved.apiKey,
       resolved.embeddingModel,
     );
-    const vectors: number[][] = [];
-    for (let i = 0; i < texts.length; i += EMBED_BATCH_SIZE) {
-      const batch = texts.slice(i, i + EMBED_BATCH_SIZE);
-      const result = await embedding.embed(batch);
-      if (result.length !== batch.length) {
-        throw new Error("Embedding count does not match chunk count");
-      }
-      vectors.push(...result);
-    }
-    return vectors;
+    return embedTextsBatched(embedding, texts, EMBED_BATCH_SIZE);
   }
 }

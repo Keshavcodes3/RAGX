@@ -1,4 +1,7 @@
 import { DocumentRepository } from "../Repository/document.repo";
+import type { DocumentJob, DocumentJobHandler } from "./job.types";
+
+export type { DocumentJob, DocumentJobHandler } from "./job.types";
 
 /**
  * In-process background job queue (no Redis). Each document gets its
@@ -8,17 +11,16 @@ import { DocumentRepository } from "../Repository/document.repo";
  * SDK uploads). Provider keys are never persisted — boot recovery
  * reprocesses via the project's stored embedding configuration, and
  * documents without one fail with a clear message.
+ *
+ * NOTE: orchestration only. The per-document workflow lives in
+ * `handlers/process-document.job.ts` (`createProcessDocumentHandler`);
+ * `index.ts` binds the shared DocumentService there at boot.
  */
 
-export interface DocumentJob {
-  documentId: string;
-  projectId: string;
-  providerName?: unknown;
-  providerKey?: unknown;
-}
-
-export type DocumentJobHandler = (job: DocumentJob) => Promise<unknown>;
-
+// TODO: persist jobs (Redis/BullMQ or DB-backed queue) so in-flight work
+// survives restarts without relying on PENDING/PROCESSING recovery scans.
+// TODO: add per-job retry with backoff + dead-letter marking instead of
+// single-attempt FAILED.
 const CONCURRENCY = 2;
 
 const queue: DocumentJob[] = [];
