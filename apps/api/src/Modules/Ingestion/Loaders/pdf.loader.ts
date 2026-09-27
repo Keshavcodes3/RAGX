@@ -13,7 +13,6 @@ export async function readPdf(filePath: string): Promise<string> {
 
   try {
     const result = await parser.getText();
-
     return result.text.trim();
   } finally {
     await parser.destroy();
