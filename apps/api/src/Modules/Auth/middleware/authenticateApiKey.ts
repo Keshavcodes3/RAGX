@@ -9,11 +9,19 @@ const projectRepository = new ProjectRepository();
 /**
  * SDK authentication: `Authorization: Bearer <ragxApiKey>`.
  * Attaches the owning project; never logs the presented key.
+ *
+ * The project is always resolved server-side from the key hash — callers
+ * can inject a repository (tests) but there is no path for a client to
+ * supply its own projectId.
  */
 export async function authenticateApiKey(
   req: Request,
   res: Response,
   next: NextFunction,
+  repository: Pick<
+    ProjectRepository,
+    "findApiKeyByHash"
+  > = projectRepository,
 ): Promise<void> {
   const header = req.headers.authorization;
 
@@ -35,7 +43,7 @@ export async function authenticateApiKey(
     return;
   }
 
-  const record = await projectRepository.findApiKeyByHash(
+  const record = await repository.findApiKeyByHash(
     hashApiKey(presented),
   );
 

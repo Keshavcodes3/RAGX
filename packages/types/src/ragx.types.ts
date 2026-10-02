@@ -17,7 +17,18 @@ export const RAGX_PROVIDER_NAMES: readonly RAGXProviderName[] = [
 export interface RAGXConfig {
   provider: RAGXProviderName;
   providerApiKey: string;
-  ragxApiKey: string;
+  /**
+   * Canonical RAGX project key (`ragx_live_...`). Authenticates the
+   * developer/project with RAGX. Sent as `Authorization: Bearer`.
+   * Conceptually separate from `providerApiKey` (sent via `X-Provider-Key`
+   * so RAGX can call the selected embedding/LLM provider).
+   */
+  apiKey?: string;
+  /**
+   * @deprecated Use `apiKey` instead. Accepted as an alias: when both are
+   * supplied they must match.
+   */
+  ragxApiKey?: string;
   baseUrl?: string;
 }
 

@@ -7,7 +7,7 @@ import type { RAGXConfig } from "./index.js";
 const CONFIG = {
   provider: "openai" as const,
   providerApiKey: "sk-test-provider-key",
-  ragxApiKey: "ragx_test_key",
+  apiKey: "ragx_test_key",
 };
 
 function stubFetch(
@@ -46,7 +46,7 @@ describe("RAGX SDK", () => {
         new RAGX({
           provider: "cohere",
           providerApiKey: "x",
-          ragxApiKey: "y",
+          apiKey: "y",
         } as unknown as RAGXConfig),
     ).toThrowError(/provider must be one of openai, mistral, gemini/);
 
@@ -54,9 +54,66 @@ describe("RAGX SDK", () => {
       () => new RAGX({ ...CONFIG, providerApiKey: "  " }),
     ).toThrowError(/providerApiKey is required when provider="openai"/);
 
-    expect(() => new RAGX({ ...CONFIG, ragxApiKey: "" })).toThrowError(
-      /ragxApiKey is required/,
+    expect(() => new RAGX({ ...CONFIG, apiKey: "" })).toThrowError(
+      /apiKey is required/,
     );
+
+    expect(
+      () =>
+        new RAGX({
+          provider: "openai",
+          providerApiKey: "x",
+        } as unknown as RAGXConfig),
+    ).toThrowError(/apiKey is required/);
+  });
+
+  it("accepts the legacy ragxApiKey alias and matching duplicates", () => {
+    expect(
+      new RAGX({
+        provider: "openai",
+        providerApiKey: "x",
+        ragxApiKey: "ragx_legacy_key",
+      }),
+    ).toBeInstanceOf(RAGX);
+
+    expect(
+      new RAGX({ ...CONFIG, ragxApiKey: CONFIG.apiKey }),
+    ).toBeInstanceOf(RAGX);
+  });
+
+  it("rejects ambiguous credentials when apiKey and ragxApiKey differ", () => {
+    expect(
+      () => new RAGX({ ...CONFIG, ragxApiKey: "ragx_other_key" }),
+    ).toThrowError(/apiKey and ragxApiKey must match/);
+  });
+
+  it("validates a custom baseUrl when supplied", async () => {
+    const stub = stubFetch(() => json({ data: { results: [] } }));
+    try {
+      await new RAGX({ ...CONFIG, baseUrl: "http://localhost:3000/" }).search(
+        "hello",
+      );
+    } finally {
+      stub.restore();
+    }
+    expect(stub.seen).toHaveLength(1);
+    expect(stub.seen[0]!.url).toBe("http://localhost:3000/v1/search");
+
+    for (const baseUrl of ["not-a-url", "ftp://files.example.com", "  "]) {
+      expect(
+        () => new RAGX({ ...CONFIG, baseUrl }),
+      ).toThrowError(/baseUrl must be a valid http\(s\) URL/);
+    }
+  });
+
+  it("never exposes credentials in initialization errors", () => {
+    const secret = "sk-live-ultra-secret-value";
+    try {
+      new RAGX({ ...CONFIG, providerApiKey: secret, apiKey: "" });
+      expect(false).toBe(true);
+    } catch (error) {
+      expect(String((error as Error).message)).not.toContain(secret);
+    }
   });
 
   it("sends ragx key as Bearer and provider key via provider headers", async () => {

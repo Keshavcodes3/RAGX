@@ -24,13 +24,47 @@ export type {
   SearchResult,
 };
 
+export type { LoadedDocument, LoadOptions } from "./loader.js";
+import { loadDocument, loadDocuments } from "./loader.js";
+import type {
+  LoadBatchItem,
+  LoadInput,
+  LoadOptions,
+  LoadedDocument,
+} from "./loader.js";
+
 
 export const DEFAULT_BASE_URL = "https://api.ragx.dev";
+
+function assertBaseUrl(baseUrl: unknown): string {
+  if (baseUrl === undefined) return DEFAULT_BASE_URL;
+  if (typeof baseUrl !== "string" || !baseUrl.trim()) {
+    throw new Error(
+      "RAGX initialization failed: baseUrl must be a valid http(s) URL.",
+    );
+  }
+  const trimmed = baseUrl.trim();
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new Error(
+      "RAGX initialization failed: baseUrl must be a valid http(s) URL.",
+    );
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(
+      "RAGX initialization failed: baseUrl must be a valid http(s) URL.",
+    );
+  }
+  return trimmed.replace(/\/+$/, "");
+}
 
 function assertConfig(config: RAGXConfig): {
   provider: RAGXProviderName;
   providerApiKey: string;
   ragxApiKey: string;
+  baseUrl: string;
 } {
   if (!config || !isRAGXProviderName(config.provider)) {
     throw new Error(
@@ -42,15 +76,28 @@ function assertConfig(config: RAGXConfig): {
       `RAGX initialization failed: providerApiKey is required when provider="${config.provider}".`,
     );
   }
-  if (!config.ragxApiKey?.trim()) {
+  // Canonical `apiKey`, with legacy `ragxApiKey` as an alias. Both
+  // supplied but different means ambiguous credentials — fail fast
+  // instead of silently picking one.
+  const apiKey = config.apiKey?.trim() ? config.apiKey : undefined;
+  const legacyKey =
+    config.ragxApiKey?.trim() ? config.ragxApiKey : undefined;
+  if (apiKey && legacyKey && apiKey !== legacyKey) {
     throw new Error(
-      "RAGX initialization failed: ragxApiKey is required.",
+      "RAGX initialization failed: apiKey and ragxApiKey must match when both are supplied.",
+    );
+  }
+  const ragxApiKey = apiKey ?? legacyKey;
+  if (!ragxApiKey?.trim()) {
+    throw new Error(
+      "RAGX initialization failed: apiKey is required.",
     );
   }
   return {
     provider: config.provider,
     providerApiKey: config.providerApiKey,
-    ragxApiKey: config.ragxApiKey,
+    ragxApiKey,
+    baseUrl: assertBaseUrl(config.baseUrl),
   };
 }
 
@@ -99,6 +146,22 @@ export class RAGX {
     delete(documentId: string): Promise<void>;
   };
 
+  /**
+   * Local document loading. Normalizes paths, bytes, and Blobs into
+   * `LoadedDocument`s that feed the ingestion pipeline (via
+   * `documents.upload()`). Local-only — no remote URL loading.
+   */
+  readonly loader: {
+    load(
+      input: LoadInput | BatchFileInput,
+      opts?: LoadOptions,
+    ): Promise<LoadedDocument>;
+    load(
+      inputs: LoadBatchItem[],
+      opts?: LoadOptions,
+    ): Promise<LoadedDocument[]>;
+  };
+
   constructor(config: RAGXConfig) {
     const valid = assertConfig(config);
     this.provider = valid.provider;
@@ -106,7 +169,7 @@ export class RAGX {
     // provider headers — never to the provider directly, never logged.
     this.providerApiKey = valid.providerApiKey;
     this.ragxApiKey = valid.ragxApiKey;
-    this.baseUrl = (config.baseUrl ?? DEFAULT_BASE_URL).replace(/\/$/, "");
+    this.baseUrl = valid.baseUrl;
 
     this.documents = {
       upload: ((
@@ -126,6 +189,27 @@ export class RAGX {
       },
       list: () => this.listDocuments(),
       delete: (documentId) => this.deleteDocument(documentId),
+    };
+
+    this.loader = {
+      load: ((
+        input: LoadInput | BatchFileInput | LoadBatchItem[],
+        opts?: LoadOptions,
+      ): Promise<LoadedDocument | LoadedDocument[]> => {
+        if (Array.isArray(input)) {
+          return loadDocuments(input, opts);
+        }
+        return loadDocument(input, opts);
+      }) as {
+        (
+          input: LoadInput | BatchFileInput,
+          opts?: LoadOptions,
+        ): Promise<LoadedDocument>;
+        (
+          inputs: LoadBatchItem[],
+          opts?: LoadOptions,
+        ): Promise<LoadedDocument[]>;
+      },
     };
   }
 
