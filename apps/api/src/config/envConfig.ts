@@ -16,6 +16,7 @@ export interface AppConfig {
   NODE_ENV: string;
   JWT_EXPIRES_IN: string;
   RAGX_ENCRYPTION_KEY: string;
+  GEMINI_GUARD_API_KEY: string;
   WEB_APP_URL: string;
   STORAGE_DIR: string;
 }
@@ -38,15 +39,16 @@ function readRequiredEnv(name: string): string | undefined {
   return value;
 }
 
-//! Never log envConfig itself: it contains DATABASE_URL, JWT_SECRET and
-// encryption keys. Log only individual non-secret fields when needed.
+//! Never log envConfig itself: it contains database credentials, JWT secrets,
+// encryption keys, and API keys. Log only individual non-secret fields.
 export const envConfig: AppConfig = {
   DATABASE_URL: readRequiredEnv("DATABASE_URL") ?? "",
   PORT: Number(readEnv("PORT", "3000")),
-  JWT_SECRET: readEnv("JWT_SECRET", "dev-only-secret-change-in-production")!,
+  JWT_SECRET: readEnv("JWT_SECRET", "change-me-in-production")!,
   NODE_ENV: readEnv("NODE_ENV", "development")!,
   JWT_EXPIRES_IN: readEnv("JWT_EXPIRES_IN", "7d")!,
   RAGX_ENCRYPTION_KEY: readEnv("RAGX_ENCRYPTION_KEY", "")!,
+  GEMINI_GUARD_API_KEY: readEnv("GEMINI_GUARD_API_KEY", "")!,
   WEB_APP_URL: readEnv("WEB_APP_URL", "http://localhost:3000")!,
   // NOTE: `RAGX_STORAGE_DIR` is the canonical variable. `STORAGE_DIR` is
   // accepted as a legacy alias so existing deployments keep working.
@@ -57,7 +59,10 @@ export const envConfig: AppConfig = {
 // TODO: promote to a hard startup failure (throw when required vars are
 // missing and NODE_ENV=production) once deployment docs guarantee the vars.
 if (envConfig.NODE_ENV === "production") {
-  if (envConfig.JWT_SECRET === "dev-only-secret-change-in-production") {
+  if (
+    envConfig.JWT_SECRET === "change-me-in-production" ||
+    envConfig.JWT_SECRET === "dev-only-secret-change-in-production"
+  ) {
     console.warn(
       "[config] JWT_SECRET uses the dev fallback in production. Set JWT_SECRET.",
     );

@@ -193,6 +193,44 @@ const results = await ragx.search(
 
 RAGX focuses on retrieval, while you remain in control of generation.
 
+Output Guardrail (Integration Pending)
+
+A standalone server-side output guardrail is implemented in
+`apps/api/src/Modules/Guardrails/`. It is not yet connected to the answer flow,
+so API answers are not automatically checked or blocked by it.
+
+- `secret.scanner.ts` detects likely credentials locally and reports their types.
+- `output.guardrail.prompt.ts` defines the AI security review instructions.
+- `output.guardrail.ts` exports `outputGuardrail(output, options)` and combines
+  the scanner with the Gemini client in `apps/api/src/config/aiConfig.ts`.
+
+The guardrail blocks locally detected credentials without sending the candidate
+output to Gemini. Otherwise, Gemini reviews the output for credential leaks,
+prompt injection, jailbreaks, data exfiltration, malicious payloads, and exposure
+of confidential information. These checks are heuristic and may miss attacks.
+
+Set `GEMINI_GUARD_API_KEY` in `apps/api/.env` for AI review. The default model is
+`gemini-2.5-flash`; callers can override it with the `model` option. Other optional
+inputs are `userQuery`, `retrievedContext`, and `knownSecrets`.
+
+The result contains `decision`, `attackTypes`, `credentialTypes`, and `reason`.
+Decisions are `allow`, `block`, or `review`; failed or invalid AI checks return
+`review`. Only `allow` should permit releasing the answer.
+
+Remaining integration: call the guardrail after answer generation in
+`apps/api/src/Modules/Documents/Services/retrieval.services.ts` and handle
+`block` and `review` before returning the answer. This is an internal backend
+function, not an exported SDK feature.
+
+Run the scanner and guardrail tests from `apps/api`:
+
+```powershell
+bun test src/Modules/Guardrails/
+```
+
+The guardrail tests mock Gemini requests; live model detection is not verified
+by these tests.
+
 Knowledge Bases
 
 Group documents into isolated knowledge bases.

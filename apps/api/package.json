@@ -30,6 +30,7 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@google/genai": "^2.26.0",
     "@langchain/core": "^1.2.12",
     "@langchain/textsplitters": "^1.0.1",
     "@repo/types": "*",
