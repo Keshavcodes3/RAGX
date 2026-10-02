@@ -16,6 +16,7 @@ export type {
   VectorStoreResolution,
 } from "./vector-store.types";
 export { cosineSimilarity } from "./similarity";
+export { PostgresJsonbVectorStore } from "./postgres-jsonb.vector-store";
 export {
   createVectorStore,
   listVectorStores,

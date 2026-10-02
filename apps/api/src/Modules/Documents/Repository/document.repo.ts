@@ -185,6 +185,7 @@ export class DocumentRepository {
   async listChunksByProject(projectId: string) {
     return this.DB
       .select({
+        id: documentChunkTable.id,
         documentId: documentChunkTable.documentId,
         page: documentChunkTable.page,
         text: documentChunkTable.text,

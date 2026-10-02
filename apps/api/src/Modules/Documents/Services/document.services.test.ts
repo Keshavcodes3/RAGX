@@ -145,6 +145,11 @@ function documentRepo() {
     ) => {
       chunks.push(...rows);
     },
+    deleteChunksByDocument: async (documentId: string) => {
+      for (let i = chunks.length - 1; i >= 0; i--) {
+        if (chunks[i]!.documentId === documentId) chunks.splice(i, 1);
+      }
+    },
     listChunksByProject: async (projectId: string) =>
       chunks.filter((c) => c.projectId === projectId),
   };
@@ -557,6 +562,11 @@ describe("documents access control", () => {
 });
 
 describe("retrieval engine", () => {
+  // Allow-fake for the output guardrail: keeps retrieval/ask tests
+  // deterministic without touching the Gemini-backed guard model.
+  // Guardrail behavior itself is covered in "ask output guardrail" below.
+  const allowGuardrail = async () => ({ decision: "allow" as const });
+
   function seeded() {
     const { repo } = testService();
     repo.chunks.push(
@@ -564,7 +574,7 @@ describe("retrieval engine", () => {
       { documentId: "d1", projectId: PROJECT, page: 2, text: "bbb", embedding: [0, 1, 0] },
       { documentId: "d2", projectId: PROJECT, page: 1, text: "ccc", embedding: [0, 0, 1] },
     );
-    return new RetrievalService(repo as never);
+    return new RetrievalService(repo as never, undefined, allowGuardrail);
   }
 
   it("ranks chunks by cosine similarity and honors topK", async () => {
@@ -608,7 +618,11 @@ describe("retrieval engine", () => {
     const stub = stubOpenAI();
     try {
       const { repo } = testService();
-      const retrieval = new RetrievalService(repo as never);
+      const retrieval = new RetrievalService(
+        repo as never,
+        undefined,
+        allowGuardrail,
+      );
       const result = await retrieval.ask(PROJECT, "anything", 5, HEADERS);
 
       expect(result.results).toEqual([]);
@@ -643,7 +657,11 @@ describe("retrieval engine", () => {
         { documentId: "mine", projectId: PROJECT, text: "aaa", embedding: [1, 0, 0] },
         { documentId: "theirs", projectId: OTHER_PROJECT, text: "aaa", embedding: [1, 0, 0] },
       );
-      const service = new RetrievalService(repo as never);
+      const service = new RetrievalService(
+        repo as never,
+        undefined,
+        allowGuardrail,
+      );
 
       const hits = await service.search(PROJECT, "query", 10, HEADERS);
       expect(hits.length).toBe(1);
@@ -652,6 +670,132 @@ describe("retrieval engine", () => {
       const otherHits = await service.search(OTHER_PROJECT, "query", 10, HEADERS);
       expect(otherHits.length).toBe(1);
       expect(otherHits[0]!.documentId).toBe("theirs");
+    } finally {
+      stub.restore();
+    }
+  });
+});
+
+describe("ask output guardrail", () => {
+  const allowGuardrail = async () => ({ decision: "allow" as const });
+  const reviewGuardrail = async () => ({ decision: "review" as const });
+
+  function singleChunk() {
+    const { repo } = testService();
+    repo.chunks.push(
+      { documentId: "d1", projectId: PROJECT, page: 1, text: "aaa", embedding: [1, 0, 0] },
+    );
+    return repo;
+  }
+
+  it("returns the answer when the guardrail allows", async () => {
+    const stub = stubOpenAI();
+    try {
+      const repo = singleChunk();
+      const service = new RetrievalService(
+        repo as never,
+        undefined,
+        allowGuardrail,
+      );
+
+      const result = await service.ask(PROJECT, "What is this?", 5, HEADERS);
+
+      expect(result.answer).toBe("generated answer");
+      expect(result.results.length).toBeGreaterThan(0);
+    } finally {
+      stub.restore();
+    }
+  });
+
+  it("blocks credential leaks without returning the answer", async () => {
+    const { envConfig } = await import("@/config/envConfig");
+    envConfig.GEMINI_GUARD_API_KEY ||= "guardrail-test-key";
+
+    const leaked = `the key is ragx_live_${"A".repeat(32)}`;
+    const chatBodies: string[] = [];
+    const restore = stubFetch((url, init) => {
+      if (url.includes("/embeddings")) {
+        return json({ data: [{ embedding: [1, 0, 0] }] });
+      }
+      chatBodies.push((init.body as string) ?? "");
+      return json({ choices: [{ message: { content: leaked } }] });
+    });
+
+    try {
+      const repo = singleChunk();
+      // Default (real) guardrail: the local secret scanner must block the
+      // leaked key without any network call to the guard model.
+      const service = new RetrievalService(repo as never);
+
+      const err = await service
+        .ask(PROJECT, "What is this?", 5, HEADERS)
+        .then(
+          () => null,
+          (error: unknown) => error,
+        );
+
+      // Generation happened first — the guard inspected actual output.
+      expect(chatBodies.length).toBe(1);
+      expect(err).toMatchObject({ statusCode: 403 });
+      const message = err instanceof Error ? err.message : String(err);
+      expect(message).not.toContain("A".repeat(32));
+      expect(message).not.toContain(leaked);
+    } finally {
+      restore();
+    }
+  });
+
+  it("withholds suspicious output marked for review", async () => {
+    const stub = stubOpenAI();
+    try {
+      const repo = singleChunk();
+      const service = new RetrievalService(
+        repo as never,
+        undefined,
+        reviewGuardrail,
+      );
+
+      const err = await service
+        .ask(PROJECT, "What is this?", 5, HEADERS)
+        .then(
+          () => null,
+          (error: unknown) => error,
+        );
+
+      expect(err).toMatchObject({ statusCode: 502 });
+      const message = err instanceof Error ? err.message : String(err);
+      expect(message).not.toContain("generated answer");
+    } finally {
+      stub.restore();
+    }
+  });
+
+  it("withholds the answer when the guardrail itself fails", async () => {
+    const stub = stubOpenAI();
+    try {
+      const repo = singleChunk();
+      const failing = async (): Promise<{
+        decision: "allow" | "block" | "review";
+      }> => {
+        throw new Error("boom");
+      };
+      const service = new RetrievalService(
+        repo as never,
+        undefined,
+        failing,
+      );
+
+      const err = await service
+        .ask(PROJECT, "What is this?", 5, HEADERS)
+        .then(
+          () => null,
+          (error: unknown) => error,
+        );
+
+      expect(err).toMatchObject({ statusCode: 502 });
+      const message = err instanceof Error ? err.message : String(err);
+      expect(message).not.toContain("boom");
+      expect(message).not.toContain("generated answer");
     } finally {
       stub.restore();
     }

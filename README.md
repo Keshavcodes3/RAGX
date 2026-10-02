@@ -193,11 +193,16 @@ const results = await ragx.search(
 
 RAGX focuses on retrieval, while you remain in control of generation.
 
-Output Guardrail (Integration Pending)
+Output Guardrail
 
-A standalone server-side output guardrail is implemented in
-`apps/api/src/Modules/Guardrails/`. It is not yet connected to the answer flow,
-so API answers are not automatically checked or blocked by it.
+A server-side output guardrail is implemented in
+`apps/api/src/Modules/Guardrails/` and enforced in the `/v1/ask` flow
+(`apps/api/src/Modules/Documents/Services/retrieval.services.ts`): after
+LLM generation, the actual generated answer is checked via
+`outputGuardrail(answer, { userQuery, retrievedContext, knownSecrets })`.
+Only `allow` releases the answer; `block` (403) and `review` (502,
+including guardrail failures) fail closed with safe static messages and
+never expose the candidate answer, guardrail reasoning, or credentials.
 
 - `secret.scanner.ts` detects likely credentials locally and reports their types.
 - `output.guardrail.prompt.ts` defines the AI security review instructions.
@@ -215,11 +220,7 @@ inputs are `userQuery`, `retrievedContext`, and `knownSecrets`.
 
 The result contains `decision`, `attackTypes`, `credentialTypes`, and `reason`.
 Decisions are `allow`, `block`, or `review`; failed or invalid AI checks return
-`review`. Only `allow` should permit releasing the answer.
-
-Remaining integration: call the guardrail after answer generation in
-`apps/api/src/Modules/Documents/Services/retrieval.services.ts` and handle
-`block` and `review` before returning the answer. This is an internal backend
+`review`. Only `allow` releases the answer. This is an internal backend
 function, not an exported SDK feature.
 
 Run the scanner and guardrail tests from `apps/api`:

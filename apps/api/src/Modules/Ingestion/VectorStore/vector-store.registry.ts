@@ -18,8 +18,31 @@ import type {
 
 export type { VectorStoreClient, VectorStoreResolution } from "./vector-store.types";
 
+/**
+ * Tenant scope for driver construction. The `VectorStoreClient` interface
+ * itself carries no tenant field, so isolation is bound at creation time:
+ * factories must scope reads/writes to `scope.projectId`. `listChunks`
+ * lets services inject their repository (and tests inject fakes) without
+ * the registry importing repository classes.
+ */
+export interface VectorStoreScope {
+  projectId: string;
+  listChunks?: (
+    projectId: string,
+  ) => Promise<
+    {
+      id?: string;
+      documentId: string;
+      page: number | null;
+      text: string;
+      embedding: number[] | null;
+    }[]
+  >;
+}
+
 type VectorStoreFactory = (
   resolution: VectorStoreResolution,
+  scope?: VectorStoreScope,
 ) => VectorStoreClient | Promise<VectorStoreClient>;
 
 const factories = new Map<string, VectorStoreFactory>();
@@ -33,6 +56,7 @@ export function registerVectorStore(
 
 export async function createVectorStore(
   resolution: VectorStoreResolution & { provider: string },
+  scope?: VectorStoreScope,
 ): Promise<VectorStoreClient> {
   const factory = factories.get(resolution.provider.toLowerCase());
   if (!factory) {
@@ -40,7 +64,7 @@ export async function createVectorStore(
       `Unsupported vector store provider: ${resolution.provider}`,
     );
   }
-  return factory(resolution);
+  return factory(resolution, scope);
 }
 
 export function listVectorStores(): string[] {
