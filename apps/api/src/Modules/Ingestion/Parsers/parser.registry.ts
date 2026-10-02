@@ -1,5 +1,11 @@
 import { UnsupportedDocumentTypeError } from "../Errors/document.errors"
+import { CsvParser } from "./csv.parser"
+import { DocxParser } from "./docx.parser"
+import { HtmlParser } from "./html.parser"
+import { JsonParser } from "./json.parser"
+import { MarkdownParser } from "./markdown.parser"
 import { PdfParser } from "./pdf.parser"
+import { TextParser } from "./text.parser"
 import type { Parser } from "./parser"
 
 function normalizeMime(mimeType: string): string {
@@ -39,6 +45,7 @@ export class ParserRegistry {
       "text/plain",
       "text/csv",
       "text/markdown",
+      "application/json",
     ]
     for (const mime of candidates) {
       if (this.parsers.some((p) => p.supports(mime))) mimes.push(mime)
@@ -47,5 +54,12 @@ export class ParserRegistry {
   }
 }
 
-/** Default registry: PDF today, extensible for DOCX/HTML/TXT/CSV/Markdown. */
-export const parserRegistry = new ParserRegistry().register(new PdfParser())
+/** Default registry: all formats RAGX ingests. New formats register here. */
+export const parserRegistry = new ParserRegistry()
+  .register(new PdfParser())
+  .register(new TextParser())
+  .register(new MarkdownParser())
+  .register(new HtmlParser())
+  .register(new CsvParser())
+  .register(new DocxParser())
+  .register(new JsonParser())

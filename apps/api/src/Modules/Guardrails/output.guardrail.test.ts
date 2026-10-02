@@ -3,7 +3,6 @@ import { GenerateContentResponse } from "@google/genai";
 import { envConfig } from "@/config/envConfig";
 import { OUTPUT_GUARDRAIL_PROMPT } from "./output.guardrail.prompt";
 
-// Construct the SDK client with a dummy key if needed; every request is mocked.
 const previousKey = envConfig.GEMINI_GUARD_API_KEY;
 envConfig.GEMINI_GUARD_API_KEY ||= "guardrail-test-key";
 const { aiGuard } = await import("@/config/aiConfig");

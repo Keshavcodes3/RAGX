@@ -10,8 +10,8 @@
 // it here once at boot, so every job reuses the same repositories,
 // storage driver, and provider resolution without module-level singletons.
 
-import type { DocumentService } from "../Services/document.services";
-import type { DocumentJob } from "./job.types";
+import type { DocumentService } from "../../Services/document.services";
+import type { DocumentJob } from "../job.types";
 
 export interface ProcessDocumentHandlerOptions {
   providerName?: unknown;

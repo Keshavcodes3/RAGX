@@ -169,6 +169,19 @@ export class DocumentRepository {
     );
   }
 
+  /**
+   * Remove stale chunks for one document before (re)inserting.
+   * Makes retries idempotent: a FAILED attempt that already wrote rows,
+   * or a PROCESSING row requeued after a crash, never leaves duplicates.
+   * Scoped by documentId only — the caller already verified project
+   * ownership via findById, so no cross-project delete is possible here.
+   */
+  async deleteChunksByDocument(documentId: string) {
+    await this.DB.delete(documentChunkTable).where(
+      eq(documentChunkTable.documentId, documentId),
+    );
+  }
+
   async listChunksByProject(projectId: string) {
     return this.DB
       .select({
@@ -176,6 +189,7 @@ export class DocumentRepository {
         page: documentChunkTable.page,
         text: documentChunkTable.text,
         embedding: documentChunkTable.embedding,
+        metadata: documentChunkTable.metadata,
       })
       .from(documentChunkTable)
       .where(eq(documentChunkTable.projectId, projectId));

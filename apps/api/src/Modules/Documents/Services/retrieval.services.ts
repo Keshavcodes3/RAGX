@@ -38,12 +38,25 @@ export class RetrievalService {
       resolved.embeddingModel,
     );
     const [queryVector] = await embedding.embed([query]);
-    if (!queryVector) return [];
+    if (!queryVector || queryVector.length === 0) return [];
 
     const chunks =
       await this.documentRepository.listChunksByProject(projectId);
 
-    return chunks
+    // Dimension consistency: ingestion validates a single dimension per
+    // document batch, but the stored model can change over time. Chunks
+    // whose embedding length differs from the query vector cannot be
+    // ranked meaningfully (cosine uses min-length), so they are skipped
+    // rather than scored. Non-finite stored values are skipped as well.
+    const queryDim = queryVector.length;
+    const rankable = chunks.filter(
+      (chunk) =>
+        Array.isArray(chunk.embedding) &&
+        chunk.embedding.length === queryDim &&
+        chunk.embedding.every((v) => Number.isFinite(v)),
+    );
+
+    return rankable
       .map((chunk) => ({
         score: cosineSimilarity(queryVector, chunk.embedding ?? []),
         text: chunk.text,

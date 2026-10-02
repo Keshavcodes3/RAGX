@@ -13,6 +13,7 @@ import {
   detectMimeType,
   ingestDocument,
 } from "../../Ingestion/Pipeline/ingestion";
+import { parserRegistry } from "../../Ingestion/Parsers";
 import { resolveRequestProvider } from "../../Providers/Runtime/resolution";
 import type { ResolvedProvider } from "../../Providers/Runtime/resolution";
 import { ProviderService } from "../../Providers/Services/provider.services";
@@ -81,6 +82,19 @@ function safeFailureMessage(error: unknown): string {
 }
 
 function decodeContent(contentBase64: string): Buffer {
+  if (!contentBase64 || contentBase64.length === 0) {
+    throw new DocumentEmptyError(
+      "Document content is empty or exceeds the 15MB limit",
+    );
+  }
+  // Base64 inflates raw bytes by ~4/3. Reject oversized payloads before
+  // allocating the decoded Buffer so a huge upload never spikes memory.
+  const maxBase64Length = Math.ceil((MAX_DOCUMENT_BYTES * 4) / 3) + 1024;
+  if (contentBase64.length > maxBase64Length) {
+    throw new DocumentEmptyError(
+      "Document content is empty or exceeds the 15MB limit",
+    );
+  }
   const buffer = Buffer.from(contentBase64, "base64");
   if (buffer.length === 0 || buffer.length > MAX_DOCUMENT_BYTES) {
     throw new DocumentEmptyError(
@@ -88,6 +102,54 @@ function decodeContent(contentBase64: string): Buffer {
     );
   }
   return buffer;
+}
+
+function assertSupportedMimeType(mimeType: string): void {
+  // Fail fast at upload time: without a registered parser the background
+  // job could only mark the document FAILED. Throwing here (415) creates
+  // no DB row, stores no bytes, and enqueues no job.
+  parserRegistry.get(mimeType);
+}
+
+function assertValidEmbeddings(vectors: number[][], expectedCount: number): void {
+  if (vectors.length !== expectedCount) {
+    throw new Error("Embedding count does not match chunk count");
+  }
+  if (vectors.length === 0) return;
+  const dim = vectors[0]!.length;
+  if (!dim || dim === 0) {
+    throw new Error("Embedding provider returned empty vectors");
+  }
+  for (const vector of vectors) {
+    if (!Array.isArray(vector) || vector.length !== dim) {
+      throw new Error("Embedding dimensions are inconsistent");
+    }
+    for (const value of vector) {
+      if (!Number.isFinite(value)) {
+        throw new Error("Embedding provider returned an invalid vector");
+      }
+    }
+  }
+}
+
+// Tables are never split by the chunker, so a single huge markdown table
+// could exceed embedding provider token limits and fail the whole
+// document. Split only oversize chunks here (post-process, chunker
+// untouched) so the common path is unchanged.
+const MAX_EMBED_CHARS = 8000;
+const EMBED_SPLIT_OVERLAP = 800;
+
+function splitOversizeChunkText(text: string): string[] {
+  const clean = text.trim();
+  if (!clean || clean.length <= MAX_EMBED_CHARS) return clean ? [clean] : [];
+  const parts: string[] = [];
+  const step = MAX_EMBED_CHARS - EMBED_SPLIT_OVERLAP;
+  for (let start = 0; start < clean.length; start += step) {
+    const slice = clean.slice(start, start + MAX_EMBED_CHARS).trim();
+    if (slice) parts.push(slice);
+    if (start + MAX_EMBED_CHARS >= clean.length) break;
+  }
+  return parts;
 }
 
 export class DocumentService {
@@ -114,6 +176,7 @@ export class DocumentService {
     }
     const buffer = decodeContent(input.contentBase64);
     const mimeType = detectMimeType(fileName, input.mimeType);
+    assertSupportedMimeType(mimeType);
 
     // The id is generated up front so the object key is known before
     // the first insert — no placeholder references, no extra roundtrip.
@@ -211,6 +274,15 @@ export class DocumentService {
     try {
       await this.documentRepository.markProcessing(documentId);
 
+      // Defense in depth: upload already enforces MAX_DOCUMENT_BYTES, but
+      // the stored object could have been replaced out of band. Checking
+      // the recorded size avoids downloading a huge object unnecessarily.
+      if (row.size > MAX_DOCUMENT_BYTES) {
+        throw new DocumentEmptyError(
+          "Document content is empty or exceeds the 15MB limit",
+        );
+      }
+
       const resolved = await resolveRequestProvider(
         projectId,
         providerHeaders,
@@ -218,6 +290,11 @@ export class DocumentService {
       );
 
       const buffer = await this.storage.download(row.objectKey);
+      if (buffer.length === 0 || buffer.length > MAX_DOCUMENT_BYTES) {
+        throw new DocumentEmptyError(
+          "Document content is empty or exceeds the 15MB limit",
+        );
+      }
       const fileName = row.filename;
 
       // Internal pipeline: parse → clean → chunk. RAGX chooses the
@@ -227,7 +304,25 @@ export class DocumentService {
         fileName,
         mimeType: row.mimeType,
       });
-      const chunks = structuredChunk(toStructuredDocument(cleaned, fileName));
+      const allChunks = structuredChunk(toStructuredDocument(cleaned, fileName));
+      // Drop whitespace-only slices and image-ref chunks (no searchable
+      // signal, only embedding cost). Order is preserved for chunkIndex.
+      // Then split any oversize chunk (unsplit tables) so providers never
+      // reject the batch on token limits. Chunker itself is untouched.
+      const searchable = allChunks.filter(
+        (c) => c.kind !== "image" && c.text.trim().length > 0,
+      );
+      const chunks: typeof searchable = [];
+      for (const chunk of searchable) {
+        const parts = splitOversizeChunkText(chunk.text);
+        if (parts.length <= 1) {
+          chunks.push(chunk);
+        } else {
+          for (const part of parts) {
+            chunks.push({ ...chunk, text: part });
+          }
+        }
+      }
 
       if (chunks.length === 0) {
         throw new DocumentEmptyError("Document produced no chunks");
@@ -237,7 +332,17 @@ export class DocumentService {
         resolved,
         chunks.map((c) => c.text),
       );
+      // Guards the write path: every persisted embedding must be finite,
+      // non-empty, and share one dimension so retrieval cosine math stays
+      // valid. A mismatch fails this document only (FAILED), never others.
+      assertValidEmbeddings(vectors, chunks.length);
+      const embeddingDimensions = vectors[0]!.length;
 
+      // Idempotent retry: a previous attempt may have written rows before
+      // failing at markCompleted (or the job was requeued after a crash).
+      // Clearing this document's chunks first guarantees no duplicates.
+      // Ownership was already verified via findById above.
+      await this.documentRepository.deleteChunksByDocument(documentId);
       await this.documentRepository.insertChunks(
         chunks.map((chunk, i) => ({
           documentId,
@@ -245,7 +350,14 @@ export class DocumentService {
           page: chunk.page,
           text: chunk.text,
           embedding: vectors[i]!,
-          metadata: { page: chunk.page, chunkIndex: i },
+          metadata: {
+            page: chunk.page,
+            chunkIndex: i,
+            kind: chunk.kind,
+            provider: resolved.provider,
+            embeddingModel: resolved.embeddingModel,
+            embeddingDimensions,
+          },
         })),
       );
       await this.documentRepository.markCompleted(documentId, chunks.length);

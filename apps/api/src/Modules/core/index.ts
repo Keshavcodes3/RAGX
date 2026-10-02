@@ -65,7 +65,6 @@ export class RAGX {
     this.providerApiKey = config.providerApiKey;
     this.ragxApiKey = config.ragxApiKey;
 
-    // Eager, synchronous, network-free: fails fast on bad configuration.
     this.embedding = createEmbeddingProvider(
       this.provider,
       this.providerApiKey,
